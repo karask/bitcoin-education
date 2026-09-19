@@ -1,0 +1,7 @@
+node_modules/
+dist/
+public/runtime/
+__pycache__/
+.venv/
+.test-artifacts/
+*.tsbuildinfo

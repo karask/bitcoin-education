@@ -1,0 +1,81 @@
+:root {
+  color-scheme: light;
+  --canvas: #f6f5f1;
+  --surface: #fffefa;
+  --sidebar: #fbfaf7;
+  --topbar: #fbfaf7;
+  --text: #252923;
+  --secondary: #4a5048;
+  --muted: #656d60;
+  --faint: #737b6c;
+  --line: #e5e5dc;
+  --line-soft: #edeee6;
+  --inset: #f1f1eb;
+  --input-bg: #fafaf6;
+  --hover: #f0f0e9;
+  --accent: #bb5428;
+  --accent-soft: #f8ece2;
+  --accent-line: #edcdb7;
+  --button-bg: #be5426;
+  --button-hover: #a9451d;
+  --green: #347455;
+  --green-soft: #edf4eb;
+  --green-line: #c8dcc6;
+  --blue: #3d7093;
+  --purple: #8b62a3;
+  --teal: #3b8583;
+  --red: #b6453e;
+  --code-bg: #fafaf6;
+  --code-active: #f7ece1;
+  --code-text: #596252;
+  --code-comment: #737b6c;
+  --insight-bg: #f0f0e8;
+  --art-line: #dedacf;
+  --art-shadow: #58462808;
+  --segmented-shadow: #343b2920;
+  --card-shadow: 0 2px 4px #3b3e2603, 0 1px 2px #3b3e2603;
+}
+[data-theme='dark'] {
+  color-scheme: dark;
+  --canvas: #151816;
+  --surface: #1b201d;
+  --sidebar: #181c19;
+  --topbar: #181c19;
+  --text: #e9ece3;
+  --secondary: #bec7b8;
+  --muted: #99a494;
+  --faint: #7e8979;
+  --line: #30372f;
+  --line-soft: #292f28;
+  --inset: #151a16;
+  --input-bg: #181d19;
+  --hover: #272e26;
+  --accent: #e89a6c;
+  --accent-soft: #30251e;
+  --accent-line: #634430;
+  --button-bg: #b9542b;
+  --button-hover: #a94a24;
+  --green: #8abe99;
+  --green-soft: #202d22;
+  --green-line: #3c553e;
+  --blue: #8cb5d1;
+  --purple: #c1a0d6;
+  --teal: #86bebb;
+  --red: #efa18c;
+  --code-bg: #191e1a;
+  --code-active: #30261e;
+  --code-text: #b9c5ae;
+  --code-comment: #7d8b73;
+  --insight-bg: #1e241d;
+  --art-line: #414737;
+  --art-shadow: #00000020;
+  --segmented-shadow: #00000050;
+  --card-shadow: 0 2px 4px #00000008;
+}
+.field-prefix { --field-color: var(--purple); }
+.field-key, .field-sha256 { --field-color: var(--blue); }
+.field-coordinate-y { --field-color: var(--teal); }
+.field-hash160 { --field-color: var(--purple); }
+.field-version { --field-color: var(--accent); }
+.field-checksum { --field-color: var(--green); }
+.field-digest-rest { --field-color: var(--muted); }

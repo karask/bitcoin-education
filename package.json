@@ -1,0 +1,30 @@
+{
+  "name": "bitcoin-interactive-learning",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "setup:runtime": "python3 scripts/prepare_runtime.py",
+    "test": "node --test tests/runtime.test.mjs",
+    "test:python": "python3 -m unittest discover -s tests -p 'test_*.py' -v"
+  },
+  "dependencies": {
+    "@fontsource/dm-sans": "5.2.8",
+    "@fontsource/jetbrains-mono": "5.2.8",
+    "lucide-react": "0.577.0",
+    "pyodide": "314.0.7",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "typescript": "^5.9.3",
+    "vite": "8.3.0"
+  }
+}
