@@ -48,9 +48,9 @@ for GitHub Pages.
 ## GitHub Pages
 
 Every push to `main` runs `.github/workflows/deploy-pages.yml`, builds the app,
-and deploys `dist/` to GitHub Pages. In the repository's **Settings → Pages**,
-set **Source** to **GitHub Actions** if it is not already selected. The expected
-site URL is <https://karask.github.io/bitcoin-education/>.
+enables GitHub Pages when needed, and deploys `dist/`. The expected site URL is
+<https://karask.github.io/bitcoin-education/>. If automatic enablement is blocked
+by an organization policy, use **Settings → Pages → Source → GitHub Actions**.
 
 ## How it works
 
