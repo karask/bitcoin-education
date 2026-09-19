@@ -5,7 +5,8 @@ export function MultisigBuilder({ input, keys, dirty, error, edit, commit, resto
   input: LessonInput; keys: string[]; dirty: boolean; error: string | null;
   edit: (keys: string[]) => void; commit: (changes?: Partial<LessonInput>) => void; restore: () => void;
 }) {
-  return <section className="input-card multisig-builder" aria-label="P2SH spending rule">
+  const witness = input.kind === 'p2wsh';
+  return <section className="input-card multisig-builder" aria-label={`${witness ? 'P2WSH' : 'P2SH'} spending rule`}>
     <div className="input-card-heading"><div><span className="section-index">01</span><h2>Choose a spending rule</h2></div><button className="text-button" onClick={restore}><RotateCcw size={13} />Use example</button></div>
     <form onSubmit={(event) => { event.preventDefault(); commit(); }}>
       <div className="rule-controls">
@@ -18,7 +19,7 @@ export function MultisigBuilder({ input, keys, dirty, error, edit, commit, resto
       </div>)}</div>
       <div className="builder-actions"><p id="multisig-key-help">Compressed SEC keys · 33 bytes each · public learning data</p><button className="text-button" type="button" onClick={() => commit({ publicKeys: [keys[1], keys[0], keys[2]] })}>Swap Alice / Bob keys</button><button className="primary-button" type="submit">{dirty ? 'Apply changes' : 'Build address'}<ArrowRight size={14} /></button></div>
     </form>
-    <div className="rule-preview"><span className="eyebrow">THE REDEEM SCRIPT · SYMBOLIC VIEW</span><code><span>OP_{input.threshold}</span>{['Alice', 'Bob', 'Carol'].map((name, i) => <span className={`rule-key field-participant-${i}`} key={name}>&lt;{name}’s key&gt;</span>)}<span>OP_3</span><span>OP_CHECKMULTISIG</span></code><p>P2SH commits to a script. Multisig is one possible spending rule.</p></div>
+    <div className="rule-preview"><span className="eyebrow">THE {witness ? 'WITNESS' : 'REDEEM'} SCRIPT · SYMBOLIC VIEW</span><code><span>OP_{input.threshold}</span>{['Alice', 'Bob', 'Carol'].map((name, i) => <span className={`rule-key field-participant-${i}`} key={name}>&lt;{name}’s key&gt;</span>)}<span>OP_3</span><span>OP_CHECKMULTISIG</span></code><p>{witness ? 'P2WSH uses SHA-256 of this script as its witness program.' : 'P2SH commits to a script. Multisig is one possible spending rule.'}</p></div>
     {error && <p className="input-error" role="alert">{error}</p>}
     {dirty && <p className="draft-notice">Apply your changes to calculate the new script and address.</p>}
   </section>;

@@ -4,7 +4,7 @@ interface Pyodide {
   runPython: (code: string) => unknown;
   unpackArchive: (data: ArrayBuffer, format: string, options: { extractDir: string }) => void;
   FS: { mkdirTree: (path: string) => void; writeFile: (path: string, content: string) => void };
-  pyimport: (name: string) => { trace_p2pkh: (input: string) => string; trace_p2sh: (input: string) => string };
+  pyimport: (name: string) => { trace_lesson: (input: string) => string };
 }
 
 interface Manifest {
@@ -66,9 +66,7 @@ self.onmessage = (event: MessageEvent<{ type: 'trace'; id: number; input: Lesson
     const adapter = await ready;
     if (!adapter) return;
     try {
-      const trace = JSON.parse(request.input.kind === 'p2sh'
-        ? adapter.trace_p2sh(JSON.stringify(request.input))
-        : adapter.trace_p2pkh(JSON.stringify(request.input)));
+      const trace = JSON.parse(adapter.trace_lesson(JSON.stringify(request.input)));
       reply({ type: 'result', id: request.id, trace });
     } catch (error) {
       const raw = error instanceof Error ? error.message : String(error);

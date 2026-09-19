@@ -1,7 +1,7 @@
 export type Network = 'mainnet' | 'testnet';
 export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
-export type LessonKind = 'p2pkh' | 'p2sh';
+export type LessonKind = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare';
 
 export interface LessonInput {
   kind?: LessonKind;
@@ -28,10 +28,16 @@ export interface StepResult {
   python: string;
   intermediate?: { label: string; hex: string };
   address?: string;
+  encoding?: string;
+  encodedFrom?: string;
+  symbols?: { values: number[]; characters: string; description: string };
+  addressParts?: { label: string; value: string; description: string }[];
 }
 
 export interface LessonTrace {
   outputScript?: StepResult;
+  relatedScripts?: { title: string; result: StepResult }[];
+  comparisons?: { type: string; address: string; encoding: string; commitment: string; spending: string; script: string; scriptBytes: number }[];
   network: Network;
   compressed: boolean;
   publicKey: string;

@@ -1,8 +1,28 @@
 # Bit by Bit
 
-A local, browser-native Bitcoin learning lab. P2PKH and P2SH lessons explain
-address construction with real Python, synchronized pseudocode, and annotated
-bytes. Both light and dark themes are included.
+A local, browser-native Bitcoin learning lab. Seven lessons cover legacy,
+script-hash, SegWit, nested SegWit, Taproot, and address comparisons with real
+Python, synchronized pseudocode, and annotated bytes. Both light and dark themes
+are included.
+
+## Learning path
+
+Append a lesson fragment to `/bitcoin-education/`:
+
+| Fragment | Lesson |
+| --- | --- |
+| `#p2pkh` | SEC public key → HASH160 → Base58Check |
+| `#p2sh` | Multisig redeem script → HASH160 → P2SH |
+| `#p2wpkh` | Compressed key → witness v0 program → Bech32 |
+| `#p2wsh` | Multisig witness script → SHA-256 → Bech32 |
+| `#nested` | P2WPKH redeem script → outer P2SH address |
+| `#p2tr` | X-only internal key → TapTweak → output key → Bech32m |
+| `#compare` | Six address constructions and locking scripts from one key |
+
+SegWit inputs use compressed SEC public keys. Taproot starts from a compressed
+SEC key and explains its x-only interpretation; this example has no script
+tree. The comparison lab uses `<key> OP_CHECKSIG` for P2SH and P2WSH, making
+their common one-key input explicit rather than silently adding multisig keys.
 
 ## Start locally
 
@@ -41,6 +61,11 @@ suite uses the same locally packaged runtime and compares every result against
 native CPython on mainnet/testnet with compressed/uncompressed keys.
 P2SH checks also cover 1/2/3-of-3 multisig, key order, output scripts, and an
 independent test-only address encoding.
+Modern lesson checks include published BIP173 examples, the BIP341 no-script-tree
+wallet vector (including the tweak and output key), BIP350 wrong-checksum-family
+vectors, five-bit symbol counts/padding, odd-y normalization, network isolation,
+and independent test-only Bech32/Bech32m calculations. All modern traces are
+also compared between CPython and the pinned WebAssembly runtime.
 
 `dist/` contains a complete static build, including Python and all wheels.
 Serve it over HTTP; opening `index.html` through `file://` is not supported by
@@ -75,6 +100,12 @@ compare the redeem script, address, and output script. The spending explanation
 is conceptual; the application does not execute scripts or sign transactions.
 The final Base58 string is not divided into byte-colored substrings, because
 Base58 character positions do not preserve the underlying field boundaries.
+Bech32 and Bech32m use a separate five-bit symbol explorer; these values are
+never labeled as bytes. Their address views distinguish the network prefix,
+separator, witness version, encoded program, and six-character checksum.
+Output-script views distinguish witness-version opcodes (`00` or `51`) from
+address version values (0 or 1), and distinguish the program from its wrapper.
+The interface includes links to the relevant BIPs for each lesson.
 
 ## Pinned local runtime
 

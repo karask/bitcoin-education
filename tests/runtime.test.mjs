@@ -55,3 +55,14 @@ test('P2SH WebAssembly matches native Python across networks, thresholds, and ke
   assert.throws(() => adapter.trace_p2sh(JSON.stringify({ ...vectors[0].input, publicKeys: [input.publicKey, input.publicKey, input.publicKey] })), /distinct public keys/);
   assert.throws(() => adapter.trace_p2sh(JSON.stringify({ ...vectors[0].input, threshold: 0 })), /Require 1, 2, or 3/);
 });
+
+test('all modern lessons match CPython, including published Taproot vector and odd-y keys', () => {
+  const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_modern import wasm_vectors;print(json.dumps(wasm_vectors()))"], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
+  for (const vector of vectors) {
+    assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);
+  }
+  for (const kind of ['p2wpkh', 'nested', 'p2tr', 'compare']) {
+    assert.throws(() => adapter.trace_lesson(JSON.stringify({ ...input, kind, publicKey: '02' + 'ff'.repeat(32) })), /ValueError/);
+  }
+  assert.throws(() => adapter.trace_lesson(JSON.stringify({ kind: 'p2wsh', publicKeys: [], threshold: 2 })), /ValueError/);
+});

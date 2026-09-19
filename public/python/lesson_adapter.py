@@ -13,6 +13,10 @@ from bitcoinutils.setup import setup
 from bitcoinutils.constants import NETWORK_P2SH_PREFIXES
 from bitcoinutils.keys import P2shAddress
 from bitcoinutils.script import Script
+from bitcoinutils.keys import P2wpkhAddress, P2wshAddress, P2trAddress
+from bitcoinutils.constants import NETWORK_SEGWIT_PREFIXES
+from bitcoinutils.bech32 import CHARSET, Encoding, convertbits, bech32_create_checksum, bech32_encode
+from bitcoinutils.utils import tagged_hash, tweak_taproot_pubkey
 
 
 PROGRAM = [
@@ -125,8 +129,7 @@ P2SH_PROGRAM = [
 ]
 
 
-def trace_p2sh(request_json):
-    request = json.loads(request_json)
+def multisig_inputs(request):
     network = request.get('network', 'mainnet')
     if network not in ('mainnet', 'testnet'):
         raise ValueError('Choose Mainnet or Testnet.')
@@ -154,27 +157,18 @@ def trace_p2sh(request_json):
         public_keys.append(normalized)
     if len(set(public_keys)) != 3:
         raise ValueError('Use three distinct public keys so each participant represents a different key.')
+    return network, threshold, public_keys
 
+
+def trace_p2sh(request_json):
+    network, threshold, public_keys = multisig_inputs(json.loads(request_json))
     setup(network)
     namespace = dict(threshold=threshold, public_keys=public_keys, network=network,
                      Script=Script, P2shAddress=P2shAddress, hash_sha256=hash_sha256,
                      ripemd160=ripemd160, NETWORK_P2SH_PREFIXES=NETWORK_P2SH_PREFIXES)
     for _, snippet in P2SH_PROGRAM:
         exec(snippet, namespace)
-    script_fields = [field('threshold', 'Required signatures', 0, 1,
-                           f'OP_{threshold} puts the required signature count on the stack.')]
-    for index, name in enumerate(names):
-        offset = 1 + index * 34
-        script_fields.extend([
-            field(f'push-{index}', f'Push {name}’s key', offset, offset + 1,
-                  '0x21 instructs Script to push the following 33 bytes. This length byte is part of the script and is hashed too.'),
-            field(f'participant-{index}', f'{name}’s public key', offset + 1, offset + 34,
-                  f'{name}’s compressed SEC public key. Its position matters: reordering keys changes the script hash.'),
-        ])
-    script_fields.extend([
-        field('key-count', 'Total keys', 103, 104, 'OP_3 puts the total public-key count on the stack.'),
-        field('checkmultisig', 'Check signatures', 104, 105, 'OP_CHECKMULTISIG checks the required signatures against these public keys when spending. Creating an address does not execute this script.'),
-    ])
+    script_fields = multisig_fields(threshold)
     layout = [
         field('version', 'Network version', 0, 1, f'0x{namespace["version"].hex()} identifies a P2SH address on {network}. Changing networks leaves the redeem script and its hash unchanged.'),
         field('hash160', 'Script hash', 1, 21, 'HASH160 of the entire serialized redeem script, including opcodes and push lengths.'),
@@ -214,3 +208,213 @@ def trace_p2sh(request_json):
     )
     return json.dumps(dict(network=network, compressed=True, publicKey='', address=namespace['address'],
                            steps=steps, pythonPreamble=preamble, outputScript=output))
+
+
+def multisig_fields(threshold):
+    script_fields = [field('threshold', 'Required signatures', 0, 1,
+                           f'OP_{threshold} puts the required signature count on the stack.')]
+    for index, name in enumerate(['Alice', 'Bob', 'Carol']):
+        offset = 1 + index * 34
+        script_fields.extend([
+            field(f'push-{index}', f'Push {name}’s key', offset, offset + 1,
+                  '0x21 instructs Script to push the following 33 bytes. This length byte is part of the script and is hashed too.'),
+            field(f'participant-{index}', f'{name}’s public key', offset + 1, offset + 34,
+                  f'{name}’s compressed SEC public key. Its position matters: reordering keys changes the script hash.'),
+        ])
+    script_fields.extend([
+        field('key-count', 'Total keys', 103, 104, 'OP_3 puts the total public-key count on the stack.'),
+        field('checkmultisig', 'Check signatures', 104, 105, 'OP_CHECKMULTISIG checks the required signatures against these public keys when spending. Creating an address does not execute this script.'),
+    ])
+    return script_fields
+
+
+MODERN_IMPORTS = '''from bitcoinutils.setup import setup
+from bitcoinutils.keys import PublicKey, P2shAddress, P2wpkhAddress, P2wshAddress, P2trAddress
+from bitcoinutils.script import Script
+from bitcoinutils.constants import NETWORK_SEGWIT_PREFIXES, NETWORK_P2SH_PREFIXES
+from bitcoinutils.schnorr import hash_sha256
+from bitcoinutils.ripemd160 import ripemd160
+from bitcoinutils.bech32 import convertbits, bech32_create_checksum, bech32_encode, Encoding
+from bitcoinutils.utils import tagged_hash, tweak_taproot_pubkey
+'''
+
+
+def compressed_key(raw):
+    if not isinstance(raw, str):
+        raise ValueError('Enter a compressed SEC public key in hexadecimal.')
+    normalized = ''.join(raw.split()).lower().removeprefix('0x')
+    try:
+        if len(normalized) != 66 or normalized[:2] not in ('02', '03'):
+            raise ValueError()
+        bytes.fromhex(normalized)
+        key = PublicKey(hex_str=normalized)
+        if key.to_hex() != normalized:
+            raise ValueError()
+    except Exception:
+        raise ValueError('Use a valid 33-byte compressed secp256k1 public key (02 or 03 prefix).') from None
+    return normalized
+
+
+def byte_result(id, snippet, value, fields=None, label='Digest', description='Calculated by python-bitcoin-utils.'):
+    return dict(id=id, python=snippet, hex=value.hex(), byteLength=len(value),
+                fields=fields or [field('hash160', label, 0, len(value), description)])
+
+
+def witness_fields(version, length):
+    return [
+        field('version', f'Witness version {version}', 0, 1,
+              'OP_0 (0x00) encodes witness version 0.' if version == 0 else 'OP_1 (0x51) encodes witness version 1. The opcode byte is 0x51, while the address version value is 1.'),
+        field('push-hash', 'Program length', 1, 2, f'0x{length:02x} pushes the following {length} program bytes. This length opcode is not encoded in the address.'),
+        field('hash160', 'Witness program', 2, 2 + length,
+              'The 32-byte tweaked output public key, in x-only form.' if version == 1 else f'The {length}-byte ' + ('public-key HASH160.' if length == 20 else 'SHA-256 hash of the witness script.')),
+    ]
+
+
+def p2sh_output_fields():
+    return [field('op-hash160', 'OP_HASH160', 0, 1, 'Hash the redeem script revealed in scriptSig.'),
+            field('push-hash', 'Push 20 bytes', 1, 2, '0x14 pushes the expected script hash.'),
+            field('hash160', 'Redeem-script hash', 2, 22, 'HASH160 of the serialized redeem script, including its version and length opcodes.'),
+            field('op-equal', 'OP_EQUAL', 22, 23, 'Require a matching script hash. Witness validation then checks the inner version-0 program.')]
+
+
+def address_parts(address, version):
+    separator = address.rfind('1')
+    return [
+        dict(label='Network', value=address[:separator], description='Human-readable network prefix: bc on mainnet, tb on testnet. Included in the checksum.'),
+        dict(label='Separator', value='1', description='Separates the network prefix from the data. This character is not the witness version.'),
+        dict(label='Version', value=address[separator + 1], description=f'Witness version {version}, represented as one five-bit value: q is 0; p is 1.'),
+        dict(label='Program', value=address[separator + 2:-6], description='Witness-program bytes regrouped into five-bit values and mapped to the Bech32 alphabet. A 32-byte program needs four trailing zero padding bits.'),
+        dict(label='Checksum', value=address[-6:], description='Six checksum characters cover the network prefix, version, and encoded program.'),
+    ]
+
+
+def trace_modern(request):
+    kind = request['kind']
+    network = request.get('network', 'mainnet')
+    if network not in ('mainnet', 'testnet'):
+        raise ValueError('Choose Mainnet or Testnet.')
+    preamble = MODERN_IMPORTS + f'\nnetwork = {network!r}\nsetup(network)\n'
+    if kind == 'p2wsh':
+        _, threshold, keys = multisig_inputs(request)
+        preamble += f'threshold = {threshold}\npublic_keys = {keys!r}\n'
+    else:
+        normalized = compressed_key(request.get('publicKey'))
+        preamble += f'key = PublicKey(hex_str={normalized!r})\n'
+    namespace = {}
+    exec(preamble, namespace)
+    steps = []
+
+    def add(id, snippet, variable, fields=None, label='Digest', description='Calculated by python-bitcoin-utils.'):
+        exec(snippet, namespace)
+        result = byte_result(id, snippet, namespace[variable], fields, label, description)
+        steps.append(result)
+        return result
+
+    if kind == 'p2wsh':
+        add('witness-script', "witness_script = Script([\n    f'OP_{threshold}', *public_keys,\n    'OP_3', 'OP_CHECKMULTISIG'\n])\nscript_bytes = witness_script.to_bytes()", 'script_bytes', multisig_fields(threshold))
+        add('sha256', 'program = hash_sha256(script_bytes)', 'program', label='Witness-script SHA-256', description='A single SHA-256 of the entire witness script. P2WSH does not apply RIPEMD-160.')
+        object_snippet = 'address_obj = P2wshAddress(script=witness_script)'
+        version = 0
+    elif kind == 'p2tr':
+        add('internal-key', 'internal_key = bytes.fromhex(key.to_x_only_hex())', 'internal_key', label='Internal x-only key', description='The 32-byte x coordinate selects the even-y point P. Opposite compressed prefixes with the same x coordinate produce the same Taproot internal key.')
+        add('tag-hash', "tag_digest = hash_sha256(b'TapTweak')", 'tag_digest', label='Tag digest', description='SHA-256 of the UTF-8 tag TapTweak. Tagged hashing uses this digest twice to separate this hashing context from others.')
+        add('tweak', "tweak = tagged_hash(internal_key, 'TapTweak')", 'tweak', label='TapTweak digest', description='SHA256(tag_digest || tag_digest || internal_key). This example has no script tree: no Merkle root bytes are appended, including no zero-filled root.')
+        add('output-key', "tweaked_point, output_is_odd = tweak_taproot_pubkey(\n    key.to_bytes(), int.from_bytes(tweak, 'big')\n)\nprogram = tweaked_point[:32]", 'program', label='Tweaked output x-only key', description='The library computes Q = P + tG with P normalized to even y. The address carries x(Q), not the internal key and not a hash of Q.')
+        object_snippet = 'address_obj = P2trAddress(\n    witness_program=program.hex(), is_odd=output_is_odd\n)'
+        version = 1
+    else:
+        add('public-key', 'public_key = bytes.fromhex(key.to_hex(compressed=True))', 'public_key', [
+            field('prefix', 'SEC prefix', 0, 1, '02 or 03 records y parity. This lesson uses compressed SEC serialization, as required by standard SegWit v0 relay policy.'),
+            field('key', 'x coordinate', 1, 33, 'The public key’s 32-byte x coordinate.'),
+        ])
+        add('sha256', 'key_digest = hash_sha256(public_key)', 'key_digest', label='Public-key SHA-256', description='SHA-256 of all 33 compressed public-key bytes, including the SEC prefix.')
+        add('hash160', 'program = ripemd160(key_digest)', 'program', label='Public-key HASH160', description='The 20-byte public-key hash becomes the version-0 witness program.')
+        object_snippet = 'address_obj = P2wpkhAddress(witness_program=program.hex())'
+        version = 0
+
+    length = len(namespace['program'])
+    output = add('output-script', object_snippet + '\noutput_script = address_obj.to_script_pub_key()\noutput_bytes = output_script.to_bytes()', 'output_bytes', witness_fields(version, length))
+    if kind == 'nested':
+        # These exact 22 bytes are the redeem script, not a Bech32 address string.
+        steps[-1]['id'] = 'redeem-script'
+        add('script-hash', 'redeem_script = output_script\nredeem_hash = ripemd160(hash_sha256(output_bytes))', 'redeem_hash', label='Redeem-script HASH160', description='HASH160 of all 22 bytes: OP_0, the 20-byte push opcode, and the public-key hash.')
+        layout = [field('version', 'P2SH version', 0, 1, 'Mainnet uses 05; testnet uses c4.'), field('hash160', 'Redeem-script hash', 1, 21, 'The 20-byte commitment to the inner witness-program script.')]
+        add('version', 'versioned_payload = NETWORK_P2SH_PREFIXES[network] + redeem_hash', 'versioned_payload', layout)
+        add('checksum', 'checksum = hash_sha256(hash_sha256(versioned_payload))[:4]', 'checksum', label='Base58Check checksum', description='First four bytes of double-SHA-256 of the P2SH version and redeem-script hash.')
+        final = add('address', 'address_bytes = versioned_payload + checksum\naddress_obj = P2shAddress(script=redeem_script)\naddress = address_obj.to_string()', 'address_bytes', layout + [field('checksum', 'Checksum', 21, 25, 'Four checksum bytes detect transcription errors.')])
+        final.update(address=namespace['address'], encoding='Base58Check', encodedFrom='Encoded from these 25 bytes')
+        snippet = 'output_script = address_obj.to_script_pub_key()\noutput_bytes = output_script.to_bytes()'
+        exec(snippet, namespace)
+        outer = byte_result('outer-script', snippet, namespace['output_bytes'], p2sh_output_fields())
+        return dict(network=network, compressed=True, publicKey=normalized, address=namespace['address'], steps=steps,
+                    pythonPreamble=preamble, outputScript=outer, relatedScripts=[dict(title='Redeem script · inner P2WPKH', result=output)])
+
+    add('network', 'hrp = NETWORK_SEGWIT_PREFIXES[network]\nnetwork_bytes = hrp.encode("ascii")', 'network_bytes', label='Network prefix (ASCII)', description='bc means mainnet; tb means testnet. It is address metadata, not part of the witness program or scriptPubKey.')
+    data_snippet = f'witness_version = {version}\ndata = [witness_version] + convertbits(program, 8, 5)'
+    exec(data_snippet, namespace)
+    steps.append(dict(id='groups', python=data_snippet, hex='', byteLength=0, fields=[], symbols=dict(
+        values=namespace['data'], characters=''.join(CHARSET[v] for v in namespace['data']),
+        description='One version value followed by the program regrouped into five-bit values (0–31). These are not bytes. ' + ('Four zero bits pad the final program group.' if length == 32 else 'The 160 program bits divide exactly into 32 groups.'))))
+    checksum_snippet = f'encoding = Encoding.{"BECH32M" if version == 1 else "BECH32"}\nchecksum = bech32_create_checksum(hrp, data, encoding)'
+    exec(checksum_snippet, namespace)
+    steps.append(dict(id='checksum', python=checksum_snippet, hex='', byteLength=0, fields=[], symbols=dict(
+        values=namespace['checksum'], characters=''.join(CHARSET[v] for v in namespace['checksum']),
+        description='Six five-bit checksum symbols, totaling 30 bits. ' + ('Bech32m uses checksum constant 0x2bc830a3 for witness version 1.' if version else 'Bech32 uses checksum constant 1 for witness version 0.'))))
+    final = add('address', 'encoded = bech32_encode(hrp, data, encoding)\naddress = address_obj.to_string()\nassert address == encoded', 'program', label='Witness program', description='Only these program bytes are regrouped for the data portion of the address. Version and network are encoded separately.')
+    final.update(address=namespace['address'], encoding='Bech32m' if version else 'Bech32',
+                 encodedFrom='Witness program encoded in this address', addressParts=address_parts(namespace['address'], version))
+    return dict(network=network, compressed=True, publicKey='' if kind == 'p2wsh' else normalized,
+                address=namespace['address'], steps=steps, pythonPreamble=preamble, outputScript=output)
+
+
+def trace_comparison(request):
+    network = request.get('network', 'mainnet')
+    if network not in ('mainnet', 'testnet'):
+        raise ValueError('Choose Mainnet or Testnet.')
+    normalized = compressed_key(request.get('publicKey'))
+    preamble = MODERN_IMPORTS + f'\nnetwork = {network!r}\nsetup(network)\nkey = PublicKey(hex_str={normalized!r})\n'
+    preamble += "single_key_script = Script([key.to_hex(), 'OP_CHECKSIG'])\n"
+    namespace = {}
+    exec(preamble, namespace)
+    recipes = [
+        ('p2pkh', 'P2PKH', 'key.get_address()', 'Base58Check', 'HASH160(compressed public key)', 'Signature and public key in scriptSig.'),
+        ('p2sh', 'P2SH', 'P2shAddress(script=single_key_script)', 'Base58Check', 'HASH160(single-key CHECKSIG script)', 'Signature and redeem script in scriptSig.'),
+        ('p2wpkh', 'P2WPKH', 'key.get_segwit_address()', 'Bech32', 'HASH160(compressed public key)', 'Empty scriptSig; signature and public key in witness.'),
+        ('p2wsh', 'P2WSH', 'P2wshAddress(script=single_key_script)', 'Bech32', 'SHA256(single-key CHECKSIG script)', 'Empty scriptSig; signature and witness script in witness.'),
+        ('nested', 'P2SH-P2WPKH', 'P2shAddress(script=key.get_segwit_address().to_script_pub_key())', 'Base58Check', 'HASH160(P2WPKH redeem script)', 'Redeem script in scriptSig; signature and public key in witness.'),
+        ('p2tr', 'P2TR', 'key.get_taproot_address()', 'Bech32m', 'Tweaked x-only output key (no script tree)', 'Key-path example: empty scriptSig and a Schnorr signature in witness.'),
+    ]
+    steps, rows = [], []
+    for kind, label, expression, encoding, commitment, spending in recipes:
+        snippet = f'address_obj = {expression}\naddress = address_obj.to_string()\noutput_script = address_obj.to_script_pub_key()\noutput_bytes = output_script.to_bytes()'
+        exec(snippet, namespace)
+        raw = namespace['output_bytes']
+        if kind in ('p2wpkh', 'p2wsh', 'p2tr'):
+            fields = witness_fields(1 if kind == 'p2tr' else 0, len(raw) - 2)
+        elif kind in ('p2sh', 'nested'):
+            fields = p2sh_output_fields()
+            if kind == 'p2sh':
+                fields[2]['description'] = 'HASH160 of the single-key CHECKSIG redeem script.'
+                fields[3]['description'] = 'Require a matching redeem-script hash. P2SH validation then executes the revealed CHECKSIG script.'
+        else:
+            fields = [field('prefix', 'OP_DUP OP_HASH160', 0, 2, 'Duplicate the public key and hash the copy.'), field('push-hash', 'Push 20 bytes', 2, 3, 'Push the expected public-key hash.'), field('hash160', 'Public-key hash', 3, 23, 'HASH160 of the compressed public key.'), field('checkmultisig', 'OP_EQUALVERIFY OP_CHECKSIG', 23, 25, 'Require a matching hash, then verify the signature.')]
+        step = byte_result(kind, snippet, raw, fields)
+        step.update(address=namespace['address'], encoding=encoding, encodedFrom='Actual locking script · scriptPubKey (address checksum is not stored here)')
+        steps.append(step)
+        rows.append(dict(type=label, address=namespace['address'], encoding=encoding, commitment=commitment, spending=spending, script=raw.hex(), scriptBytes=len(raw)))
+    return dict(network=network, compressed=True, publicKey=normalized, address=steps[-1]['address'],
+                steps=steps, pythonPreamble=preamble, comparisons=rows)
+
+
+def trace_lesson(request_json):
+    request = json.loads(request_json)
+    kind = request.get('kind', 'p2pkh')
+    if kind == 'p2pkh':
+        return trace_p2pkh(request_json)
+    if kind == 'p2sh':
+        return trace_p2sh(request_json)
+    if kind == 'compare':
+        return json.dumps(trace_comparison(request))
+    if kind not in ('p2wpkh', 'p2wsh', 'nested', 'p2tr'):
+        raise ValueError('Choose an available address lesson.')
+    return json.dumps(trace_modern(request))
