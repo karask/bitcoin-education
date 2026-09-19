@@ -58,3 +58,44 @@ export const LESSON_STEPS = [
     pseudo: 'address = Base58(address_bytes)', outputLabel: 'Your P2PKH address',
   },
 ] as const;
+
+export type LessonStep = { [Key in keyof typeof LESSON_STEPS[number]]: string };
+
+export const P2SH_STEPS: readonly LessonStep[] = [
+  {
+    id: 'redeem-script', short: 'Redeem script', title: 'Write the spending rule.',
+    eyebrow: 'THE STARTING POINT', operation: 'Serialize',
+    description: 'A redeem script describes how funds can be spent. Here, a multisig rule requires a chosen number of signatures from three public keys.',
+    insight: 'P2SH means “pay to script hash.” Multisig is one example of a redeem script. Every opcode, push length, and public-key byte contributes to its hash.',
+    pseudo: 'script_bytes = serialize(multisig(required, keys))', outputLabel: 'Serialized redeem script',
+  },
+  {
+    ...LESSON_STEPS[1], title: 'Fingerprint the whole rule.',
+    description: 'Pass every byte of the serialized redeem script through SHA-256. The spending rule becomes a 32-byte digest.',
+    insight: 'Changing the required signatures or the order of public keys changes the script bytes and their hash. This lesson preserves your key order.',
+    pseudo: 'script_digest = SHA256(script_bytes)',
+  },
+  {
+    ...LESSON_STEPS[2], description: 'Apply RIPEMD-160 to the SHA-256 digest. This 20-byte script hash is the commitment at the heart of a P2SH address.',
+    insight: 'The hash does not reveal the spending rule. The spender supplies the original redeem script when spending.',
+    pseudo: 'script_hash = RIPEMD160(script_digest)', outputLabel: 'Script hash · HASH160',
+  },
+  {
+    ...LESSON_STEPS[3], description: 'Prepend the version byte for a P2SH address on the chosen network.',
+    insight: 'Mainnet P2SH uses 0x05; Testnet uses 0xc4. The script and its hash stay the same when you switch networks.',
+    pseudo: 'payload = network_version + script_hash',
+  },
+  { ...LESSON_STEPS[4], description: 'Run SHA-256 twice over the network version and the script hash. Together, these bytes determine the checksum.' },
+  LESSON_STEPS[5],
+  {
+    ...LESSON_STEPS[6], description: 'Join the network version, script hash, and checksum into the complete 25-byte address payload.',
+    insight: 'The layout is 1 version byte, 20 script-hash bytes, and 4 checksum bytes. The redeem script itself is not stored in the address.',
+  },
+  { ...LESSON_STEPS[7], outputLabel: 'Your P2SH address' },
+];
+
+export const EXAMPLE_PUBLIC_KEYS = [
+  EXAMPLE_PUBLIC_KEY,
+  '02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5',
+  '02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9',
+];

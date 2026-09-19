@@ -46,3 +46,12 @@ test('WebAssembly rejects malformed and off-curve keys rather than returning sta
     assert.throws(() => adapter.trace_p2pkh(JSON.stringify({ ...input, publicKey })), /ValueError/);
   }
 });
+
+test('P2SH WebAssembly matches native Python across networks, thresholds, and key order', () => {
+  const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_p2sh import trace,KEYS;print(json.dumps([{'input':dict(network=n,threshold=t,publicKeys=k),'trace':trace(n,t,k)} for n in ['mainnet','testnet'] for t in [1,2,3] for k in [KEYS,KEYS[::-1]]]))"], { cwd: root, encoding: 'utf8' }));
+  for (const vector of vectors) {
+    assert.deepEqual(JSON.parse(adapter.trace_p2sh(JSON.stringify(vector.input))), vector.trace);
+  }
+  assert.throws(() => adapter.trace_p2sh(JSON.stringify({ ...vectors[0].input, publicKeys: [input.publicKey, input.publicKey, input.publicKey] })), /distinct public keys/);
+  assert.throws(() => adapter.trace_p2sh(JSON.stringify({ ...vectors[0].input, threshold: 0 })), /Require 1, 2, or 3/);
+});

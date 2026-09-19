@@ -1,6 +1,6 @@
 # Bit by Bit
 
-A local, browser-native Bitcoin learning lab. The first lesson explains P2PKH
+A local, browser-native Bitcoin learning lab. P2PKH and P2SH lessons explain
 address construction with real Python, synchronized pseudocode, and annotated
 bytes. Both light and dark themes are included.
 
@@ -39,6 +39,8 @@ The Python suite checks known address vectors, intermediate values, validation,
 field boundaries, and the runnable Python shown to learners. The WebAssembly
 suite uses the same locally packaged runtime and compares every result against
 native CPython on mainnet/testnet with compressed/uncompressed keys.
+P2SH checks also cover 1/2/3-of-3 multisig, key order, output scripts, and an
+independent test-only address encoding.
 
 `dist/` contains a complete static build, including Python and all wheels.
 Serve it over HTTP; opening `index.html` through `file://` is not supported by
@@ -66,6 +68,11 @@ by an organization policy, use **Settings → Pages → Source → GitHub Action
 
 The P2PKH walkthrough uses the library's SHA-256 helper, RIPEMD-160 reference
 implementation, public-key serialization, network constants, and address API.
+The P2SH lesson uses `Script` and `P2shAddress` with the same library hash helpers.
+Start at `#p2sh` to build a multisig redeem script from three distinct compressed
+public keys. Change the threshold or key order, inspect every script byte, and
+compare the redeem script, address, and output script. The spending explanation
+is conceptual; the application does not execute scripts or sign transactions.
 The final Base58 string is not divided into byte-colored substrings, because
 Base58 character positions do not preserve the underlying field boundaries.
 

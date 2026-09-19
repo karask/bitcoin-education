@@ -4,11 +4,13 @@ import {
   ChevronRight, Code2, Copy, Fingerprint, FlaskConical, HelpCircle, Info,
   Menu, Moon, Pause, Play, RotateCcw, ShieldCheck, Sparkles, Sun, X,
 } from 'lucide-react';
-import type { ByteField, CodeMode, LessonInput, LessonTrace, StepResult, Theme } from './types';
-import { EXAMPLE_PUBLIC_KEY, LESSON_STEPS } from './lessons';
+import type { ByteField, CodeMode, LessonInput, LessonKind, LessonTrace, StepResult, Theme } from './types';
+import { EXAMPLE_PUBLIC_KEY, EXAMPLE_PUBLIC_KEYS, LESSON_STEPS, P2SH_STEPS } from './lessons';
+import type { LessonStep } from './lessons';
+import { MultisigBuilder } from './MultisigBuilder';
 import { usePython } from './usePython';
 
-const INITIAL_INPUT: LessonInput = { publicKey: EXAMPLE_PUBLIC_KEY, compressed: true, network: 'mainnet' };
+const INITIAL_INPUT: LessonInput = { publicKey: EXAMPLE_PUBLIC_KEY, compressed: true, network: 'mainnet', kind: location.hash === '#p2sh' ? 'p2sh' : 'p2pkh', publicKeys: EXAMPLE_PUBLIC_KEYS, threshold: 2 };
 
 function Brand({ compact = false }: { compact?: boolean }) {
   return <div className="brand"><img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" width="36" height="36" /><div><strong>bit by bit<span>.</span></strong>{!compact && <small>THE BITCOIN LEARNING LAB</small>}</div></div>;
@@ -32,7 +34,7 @@ function CopyButton({ value, label = 'Copy', small = false }: { value: string; l
   </button>;
 }
 
-function Sidebar({ open, close, onAbout }: { open: boolean; close: () => void; onAbout: () => void }) {
+function Sidebar({ open, close, onAbout, kind }: { kind: LessonKind; open: boolean; close: () => void; onAbout: () => void }) {
   return <>
     {open && <button className="drawer-overlay" aria-label="Close navigation" onClick={close} />}
     <aside id="lesson-navigation" className={`sidebar ${open ? 'open' : ''}`} aria-label="Learning navigation" onKeyDown={(event) => {
@@ -47,7 +49,7 @@ function Sidebar({ open, close, onAbout }: { open: boolean; close: () => void; o
       <div className="nav-caption">YOUR LEARNING PATH</div>
       <nav>
         <div className="topic-label"><span className="topic-icon"><Fingerprint size={18} /></span><span>Addresses</span><ChevronDown size={15} /></div>
-        <div className="subnav"><a href="#p2pkh" onClick={close} aria-current="page"><span className="active-dot" />Legacy address<span className="nav-tag">P2PKH</span></a></div>
+        <div className="subnav">{(["p2pkh", "p2sh"] as const).map((id) => <a key={id} href={`#${id}`} onClick={close} aria-current={kind === id ? "page" : undefined}><span className="active-dot" />{id === "p2pkh" ? "Legacy address" : "Script hash"}<span className="nav-tag">{id.toUpperCase()}</span></a>)}</div>
       </nav>
       <div className="sidebar-note"><div className="note-icon"><FlaskConical size={19} /></div><h3>A little curiosity goes a long way.</h3><p>Change an input. Follow the bytes. See what Bitcoin is really made of.</p><button onClick={onAbout}>How this lab works <ArrowUpRight size={14} /></button></div>
       <div className="sidebar-bottom"><div className="local-label"><span /> A browser-native playground</div><a href="https://github.com/karask/python-bitcoin-utils" target="_blank" rel="noreferrer">Built with <strong>python-bitcoin-utils</strong><ArrowUpRight size={12} /></a><span className="sidebar-version">Made for learning. Powered by real code.</span></div>
@@ -69,7 +71,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
   </dialog>;
 }
 
-function StepTimeline({ current, select, disabled }: { current: number; select: (step: number) => void; disabled: boolean }) {
+function StepTimeline({ current, select, disabled, steps }: { steps: readonly LessonStep[]; current: number; select: (step: number) => void; disabled: boolean }) {
   const track = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const container = track.current;
@@ -78,7 +80,7 @@ function StepTimeline({ current, select, disabled }: { current: number; select: 
       container.scrollLeft = active.offsetLeft - (container.clientWidth - active.offsetWidth) / 2;
     }
   }, [current]);
-  return <div ref={track} className="step-timeline" aria-label="Address construction steps">{LESSON_STEPS.map((step, index) =>
+  return <div ref={track} className="step-timeline" aria-label="Address construction steps">{steps.map((step, index) =>
     <button key={step.id} className={`timeline-step ${index === current ? 'current' : ''} ${index < current ? 'passed' : ''}`} onClick={() => select(index)} disabled={disabled} aria-current={index === current ? 'step' : undefined} aria-label={`Step ${index + 1}: ${step.short}`}>
       <span className="timeline-track"><span className="step-number">{index < current ? <Check size={12} strokeWidth={2.5} /> : String(index + 1).padStart(2, '0')}</span><span className="step-line" /></span><span className="step-name">{step.short}</span>
     </button>)}</div>;
@@ -92,16 +94,16 @@ function HighlightedCode({ code, mode }: { code: string; mode: CodeMode }) {
   })}</>;
 }
 
-function CodePanel({ current, mode, setMode, trace, select }: { current: number; mode: CodeMode; setMode: (mode: CodeMode) => void; trace: LessonTrace | null; select: (step: number) => void }) {
+function CodePanel({ current, mode, setMode, trace, select, steps, kind }: { steps: readonly LessonStep[]; kind: LessonKind; current: number; mode: CodeMode; setMode: (mode: CodeMode) => void; trace: LessonTrace | null; select: (step: number) => void }) {
   const [importsOpen, setImportsOpen] = useState(false);
-  const code = mode === 'python' ? (trace ? `${trace.pythonPreamble}\n\n${trace.steps.map((step) => step.python).join('\n\n')}\nprint(address)` : '') : LESSON_STEPS.map((step) => step.pseudo).join('\n');
+  const code = mode === 'python' ? (trace ? `${trace.pythonPreamble}\n\n${trace.steps.map((step) => step.python).join('\n\n')}\nprint(address)` : '') : steps.map((step) => step.pseudo).join('\n');
   return <section className="panel code-panel" aria-label="Synchronized code">
     <div className="panel-toolbar"><div className="panel-label"><Code2 size={17} /><span>The process</span></div><div className="segmented code-tabs" aria-label="Code language"><button onClick={() => setMode('pseudocode')} className={mode === 'pseudocode' ? 'selected' : ''} aria-pressed={mode === 'pseudocode'}>Pseudocode</button><button onClick={() => setMode('python')} className={mode === 'python' ? 'selected' : ''} aria-pressed={mode === 'python'}>Python</button></div></div>
-    <div className="code-file"><span><span className={`file-dot ${mode}`} />{mode === 'python' ? 'p2pkh.py' : 'p2pkh · a recipe'}</span><CopyButton small value={code} label={`Copy ${mode}`} /></div>
+    <div className="code-file"><span><span className={`file-dot ${mode}`} />{mode === 'python' ? `${kind}.py` : `${kind} · a recipe`}</span><CopyButton small value={code} label={`Copy ${mode}`} /></div>
     <div className={`code-body ${mode}`}>
-      <div className="code-comment">{mode === 'python' ? '# Composed from python-bitcoin-utils' : '// From a public key to a Bitcoin address'}</div>
+      <div className="code-comment">{mode === 'python' ? '# Composed from python-bitcoin-utils' : kind === 'p2sh' ? '// From a spending rule to a Bitcoin address' : '// From a public key to a Bitcoin address'}</div>
       {mode === 'python' && trace && <><button className="imports-toggle" onClick={() => setImportsOpen(!importsOpen)} aria-expanded={importsOpen}><ChevronRight size={13} className={importsOpen ? 'rotated' : ''} />Imports & setup <span>{importsOpen ? 'hide' : 'show'}</span></button>{importsOpen && <pre className="preamble"><HighlightedCode code={trace.pythonPreamble} mode={mode} /></pre>}</>}
-      {LESSON_STEPS.map((step, i) => <button className={`code-step ${current === i ? 'active' : ''} ${i < current ? 'executed' : ''}`} key={step.id} onClick={() => select(i)} disabled={!trace} aria-label={`Inspect step ${i + 1}: ${step.short}`} aria-current={current === i ? 'step' : undefined}>
+      {steps.map((step, i) => <button className={`code-step ${current === i ? 'active' : ''} ${i < current ? 'executed' : ''}`} key={step.id} onClick={() => select(i)} disabled={!trace} aria-label={`Inspect step ${i + 1}: ${step.short}`} aria-current={current === i ? 'step' : undefined}>
         <span className="code-line-number">{String(i + 1).padStart(2, '0')}</span><span className="code-expression"><HighlightedCode code={mode === 'python' ? trace?.steps[i].python ?? '# Waiting for Python…' : step.pseudo} mode={mode} /></span><span className="code-current-marker">{current === i && <ArrowRight size={13} />}</span>
       </button>)}
     </div>
@@ -130,8 +132,7 @@ function ByteExplorer({ result, showLabel = true }: { result: StepResult; showLa
   </div>;
 }
 
-function ResultPanel({ result, current }: { result: StepResult; current: number }) {
-  const lesson = LESSON_STEPS[current];
+function ResultPanel({ result, current, lesson }: { result: StepResult; current: number; lesson: LessonStep }) {
   return <section className="panel result-panel" aria-label="Calculation output">
     <div className="panel-toolbar"><div className="panel-label"><span className="result-indicator" /><span>The result</span></div><span className="real-python"><ShieldCheck size={13} />Calculated in Python</span></div>
     <div className="result-body" key={result.id}>
@@ -152,17 +153,32 @@ export default function App() {
   const drawerHadOpened = useRef(false);
   const [input, setInput] = useState<LessonInput>(INITIAL_INPUT);
   const [draft, setDraft] = useState(EXAMPLE_PUBLIC_KEY);
+  const [draftKeys, setDraftKeys] = useState<string[]>(EXAMPLE_PUBLIC_KEYS);
   const [dirty, setDirty] = useState(false);
   const [current, setCurrent] = useState(0);
   const [mode, setMode] = useState<CodeMode>('pseudocode');
   const [playing, setPlaying] = useState(false);
   const runtime = usePython();
   const { calculate, invalidate } = runtime;
-  const lesson = LESSON_STEPS[current];
+  const kind = input.kind ?? 'p2pkh';
+  const isP2sh = kind === 'p2sh';
+  const steps = isP2sh ? P2SH_STEPS : LESSON_STEPS;
+  const lesson = steps[current];
   const result = runtime.trace?.steps[current];
   const ready = !!runtime.trace && !runtime.busy && !dirty;
 
   useEffect(() => { calculate(input); }, [input, calculate]);
+  useEffect(() => {
+    function navigate() {
+      const next = location.hash === '#p2sh' ? 'p2sh' : (location.hash === '#p2pkh' || !location.hash) ? 'p2pkh' : null;
+      if (!next) return;
+      invalidate(); setDirty(false); setPlaying(false); setCurrent(0);
+      setInput((previous) => ({ ...previous, kind: next }));
+      setDraft(input.publicKey); setDraftKeys(input.publicKeys ?? EXAMPLE_PUBLIC_KEYS);
+    }
+    window.addEventListener('hashchange', navigate);
+    return () => window.removeEventListener('hashchange', navigate);
+  }, [invalidate, input.publicKey, input.publicKeys]);
   useEffect(() => {
     if (drawerOpen) {
       drawerHadOpened.current = true;
@@ -184,10 +200,10 @@ export default function App() {
   }, [theme]);
   useEffect(() => {
     if (!playing || !ready) return;
-    if (current === LESSON_STEPS.length - 1) { setPlaying(false); return; }
+    if (current === steps.length - 1) { setPlaying(false); return; }
     const timer = setTimeout(() => setCurrent((value) => value + 1), 2800);
     return () => clearTimeout(timer);
-  }, [playing, ready, current]);
+  }, [playing, ready, current, steps.length]);
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
       if (event.key === 'Escape') setDrawerOpen(false);
@@ -204,30 +220,41 @@ export default function App() {
 
   function selectStep(step: number) { setCurrent(step); setPlaying(false); }
   function commit(changes: Partial<LessonInput> = {}) {
-    setInput({ ...input, publicKey: draft, ...changes });
+    invalidate();
+    setInput({ ...input, publicKey: draft, publicKeys: draftKeys, ...changes });
+    if (changes.publicKeys) setDraftKeys(changes.publicKeys);
     setDirty(false); setCurrent(0); setPlaying(false);
   }
   function editKey(value: string) {
     setDraft(value); setDirty(true); setPlaying(false); setCurrent(0); invalidate();
   }
-  function restoreExample() { setDraft(EXAMPLE_PUBLIC_KEY); commit({ publicKey: EXAMPLE_PUBLIC_KEY }); }
+  function editKeys(keys: string[]) { setDraftKeys(keys); setDirty(true); setPlaying(false); setCurrent(0); invalidate(); }
+  function restoreExample() { setDraft(EXAMPLE_PUBLIC_KEY); commit({ publicKey: EXAMPLE_PUBLIC_KEY, publicKeys: EXAMPLE_PUBLIC_KEYS, threshold: 2 }); }
 
   return <div className="app-shell">
     <a href="#lesson-content" className="skip-link">Skip to lesson</a>
-    <Sidebar open={drawerOpen} close={() => setDrawerOpen(false)} onAbout={() => { setAboutOpen(true); setDrawerOpen(false); }} />
+    <Sidebar kind={kind} open={drawerOpen} close={() => setDrawerOpen(false)} onAbout={() => { setAboutOpen(true); setDrawerOpen(false); }} />
     <div className="app-main" inert={drawerOpen}>
-      <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="lesson-navigation" onClick={() => setDrawerOpen(true)}><Menu size={20} /></button><span className="breadcrumb-home">The learning lab</span><ChevronRight size={13} /><span>Addresses</span><ChevronRight size={13} /><strong>P2PKH</strong></div><div className="topbar-actions"><span className={`runtime-pill ${runtime.status.state}`} title={runtime.status.message}><span />{runtime.status.state === 'ready' ? 'Runs in your browser' : runtime.status.state === 'error' ? 'Python needs attention' : 'Starting Python'}</span><span className="toolbar-divider" /><button className="icon-button" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button><button className="icon-button help-button" aria-label="About this learning lab" onClick={() => setAboutOpen(true)}><HelpCircle size={18} /></button></div></header>
+      <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="lesson-navigation" onClick={() => setDrawerOpen(true)}><Menu size={20} /></button><span className="breadcrumb-home">The learning lab</span><ChevronRight size={13} /><span>Addresses</span><ChevronRight size={13} /><strong>{kind.toUpperCase()}</strong></div><div className="topbar-actions"><span className={`runtime-pill ${runtime.status.state}`} title={runtime.status.message}><span />{runtime.status.state === 'ready' ? 'Runs in your browser' : runtime.status.state === 'error' ? 'Python needs attention' : 'Starting Python'}</span><span className="toolbar-divider" /><button className="icon-button" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button><button className="icon-button help-button" aria-label="About this learning lab" onClick={() => setAboutOpen(true)}><HelpCircle size={18} /></button></div></header>
       <main id="lesson-content" className="lesson-content">
-        <section className="hero" id="p2pkh"><div className="hero-copy"><div className="hero-meta"><span className="chapter-tag">CHAPTER 01</span><span>ADDRESSES</span><span className="hero-meta-dot">·</span><span>8 steps, one transformation</span></div><h1>An address,<br className="mobile-break" /> <span>byte by byte.</span></h1><p>How does a public key become a Bitcoin address?<br className="desktop-break" /> Follow the transformation. Understand every piece.</p></div><div className="hero-art" aria-hidden="true"><div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" /><div className="art-core"><Fingerprint size={46} strokeWidth={1.2} /></div><span className="art-label label-top">public key</span><span className="art-label label-bottom">1BgG…SAMH</span><span className="orbit-dot dot-one" /><span className="orbit-dot dot-two" /><span className="art-spark">+</span></div></section>
+        <section className="hero" id={kind}><div className="hero-copy"><div className="hero-meta"><span className="chapter-tag">{isP2sh ? 'CHAPTER 02' : 'CHAPTER 01'}</span><span>ADDRESSES</span><span className="hero-meta-dot">·</span><span>8 steps, one transformation</span></div><h1>{isP2sh ? <>An address for<br /> <span>a spending rule.</span></> : <>An address,<br className="mobile-break" /> <span>byte by byte.</span></>}</h1><p>{isP2sh ? <>Three keys. One rule. A single address.<br className="desktop-break" /> Discover how a script becomes a commitment.</> : <>How does a public key become a Bitcoin address?<br className="desktop-break" /> Follow the transformation. Understand every piece.</>}</p></div><div className="hero-art" aria-hidden="true"><div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" /><div className="art-core"><Fingerprint size={46} strokeWidth={1.2} /></div><span className="art-label label-top">{isP2sh ? 'redeem script' : 'public key'}</span><span className="art-label label-bottom">{isP2sh ? 'script hash' : '1BgG…SAMH'}</span><span className="orbit-dot dot-one" /><span className="orbit-dot dot-two" /><span className="art-spark">+</span></div></section>
 
-        <section className="input-card" aria-label="Lesson inputs"><div className="input-card-heading"><div><span className="section-index">01</span><h2>Your starting point</h2><span className="input-helper">Change it. See what happens.</span></div><button className="text-button" onClick={restoreExample}><RotateCcw size={13} />Use example</button></div><form onSubmit={(event) => { event.preventDefault(); commit(); }}><div className="public-key-input"><label htmlFor="public-key">Public key <span>SEC format · hexadecimal</span></label><div className={`key-input-wrap ${runtime.error ? 'has-error' : ''}`}><Fingerprint size={16} /><input id="public-key" value={draft} onChange={(event) => editKey(event.target.value)} spellCheck={false} autoComplete="off" aria-invalid={!!runtime.error} aria-describedby={runtime.error ? 'input-error' : 'key-help'} /><button type="submit" className={`apply-input ${dirty ? 'dirty' : ''}`} aria-label="Apply public key" title="Apply public key"><ArrowRight size={17} /></button></div><span id="key-help" className="sr-only">Use a 33-byte compressed or 65-byte uncompressed public key. Apply your changes to recalculate.</span></div><div className="input-options"><div><label htmlFor="network">Network</label><div className="select-wrap"><span className={`network-dot ${input.network}`} /><select id="network" value={input.network} onChange={(event) => commit({ network: event.target.value as LessonInput['network'] })}><option value="mainnet">Mainnet</option><option value="testnet">Testnet</option></select><ChevronDown size={13} /></div></div><div><span className="control-label" id="format-label">Public-key format</span><div className="segmented format-toggle" role="group" aria-labelledby="format-label"><button type="button" className={input.compressed ? 'selected' : ''} onClick={() => commit({ compressed: true })} aria-pressed={input.compressed}>Compressed</button><button type="button" className={!input.compressed ? 'selected' : ''} onClick={() => commit({ compressed: false })} aria-pressed={!input.compressed}>Uncompressed</button></div></div></div></form>{runtime.error && <div className="input-error" id="input-error" role="alert"><Info size={15} />{runtime.error}</div>}{dirty && <p className="draft-notice">Press Enter or the arrow to apply your public key.</p>}</section>
+        {isP2sh ? <MultisigBuilder input={input} keys={draftKeys} dirty={dirty} error={runtime.error} edit={editKeys} commit={commit} restore={restoreExample} /> : <section className="input-card" aria-label="Lesson inputs"><div className="input-card-heading"><div><span className="section-index">01</span><h2>Your starting point</h2><span className="input-helper">Change it. See what happens.</span></div><button className="text-button" onClick={restoreExample}><RotateCcw size={13} />Use example</button></div><form onSubmit={(event) => { event.preventDefault(); commit(); }}><div className="public-key-input"><label htmlFor="public-key">Public key <span>SEC format · hexadecimal</span></label><div className={`key-input-wrap ${runtime.error ? 'has-error' : ''}`}><Fingerprint size={16} /><input id="public-key" value={draft} onChange={(event) => editKey(event.target.value)} spellCheck={false} autoComplete="off" aria-invalid={!!runtime.error} aria-describedby={runtime.error ? 'input-error' : 'key-help'} /><button type="submit" className={`apply-input ${dirty ? 'dirty' : ''}`} aria-label="Apply public key" title="Apply public key"><ArrowRight size={17} /></button></div><span id="key-help" className="sr-only">Use a 33-byte compressed or 65-byte uncompressed public key. Apply your changes to recalculate.</span></div><div className="input-options"><div><label htmlFor="network">Network</label><div className="select-wrap"><span className={`network-dot ${input.network}`} /><select id="network" value={input.network} onChange={(event) => commit({ network: event.target.value as LessonInput['network'] })}><option value="mainnet">Mainnet</option><option value="testnet">Testnet</option></select><ChevronDown size={13} /></div></div><div><span className="control-label" id="format-label">Public-key format</span><div className="segmented format-toggle" role="group" aria-labelledby="format-label"><button type="button" className={input.compressed ? 'selected' : ''} onClick={() => commit({ compressed: true })} aria-pressed={input.compressed}>Compressed</button><button type="button" className={!input.compressed ? 'selected' : ''} onClick={() => commit({ compressed: false })} aria-pressed={!input.compressed}>Uncompressed</button></div></div></div></form>{runtime.error && <div className="input-error" id="input-error" role="alert"><Info size={15} />{runtime.error}</div>}{dirty && <p className="draft-notice">Press Enter or the arrow to apply your public key.</p>}</section>}
 
-        <section className="walkthrough" aria-label="P2PKH walkthrough"><div className="walkthrough-heading"><div><span className="section-index">02</span><h2>Follow the transformation</h2></div><span className="interactive-label"><Sparkles size={13} />INTERACTIVE WALKTHROUGH</span></div><StepTimeline current={current} select={selectStep} disabled={!ready} />
+        <section className="walkthrough" aria-label={`${kind.toUpperCase()} walkthrough`}><div className="walkthrough-heading"><div><span className="section-index">02</span><h2>Follow the transformation</h2></div><span className="interactive-label"><Sparkles size={13} />INTERACTIVE WALKTHROUGH</span></div><StepTimeline steps={steps} current={current} select={selectStep} disabled={!ready} />
           <div className="step-intro" aria-live="polite"><div className="step-title"><span className="step-eyebrow">STEP {String(current + 1).padStart(2, '0')} <span>/</span> {lesson.eyebrow}</span><h2>{lesson.title}</h2></div><p>{lesson.description}</p></div>
-          <div className="workspace"><CodePanel current={current} mode={mode} setMode={setMode} trace={runtime.trace} select={selectStep} />{result && ready ? <ResultPanel result={result} current={current} /> : <section className="panel empty-result" aria-live="polite"><div className="runtime-illustration"><FlaskConical size={28} /></div><h3>{runtime.status.state === 'error' ? 'Let’s reconnect Python.' : runtime.error ? 'A small adjustment is needed.' : dirty ? 'Make this experiment yours.' : 'Warming up the lab.'}</h3><p>{runtime.status.state === 'error' ? runtime.status.message : runtime.error ? runtime.error : dirty ? 'Apply your public key to see its transformation, one byte at a time.' : runtime.status.message}</p>{runtime.status.state === 'loading' && <div className="runtime-progress" role="progressbar" aria-label="Loading browser Python" aria-valuenow={runtime.status.progress} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${runtime.status.progress}%` }} /></div>}{runtime.status.state === 'error' && <><button className="secondary-button" onClick={runtime.retry}><RotateCcw size={15} />Restart Python</button><small>Missing runtime files? Run <code>npm run setup:runtime</code> once.</small></>}{runtime.error && <button className="secondary-button" onClick={restoreExample}>Try the example key <ArrowRight size={15} /></button>}{dirty && <button className="secondary-button" onClick={() => commit()}>Apply public key <ArrowRight size={15} /></button>}<span className="empty-result-note"><ShieldCheck size={13} />Calculations happen entirely in this browser.</span></section>}</div>
+          <div className="workspace"><CodePanel steps={steps} kind={kind} current={current} mode={mode} setMode={setMode} trace={runtime.trace} select={selectStep} />{result && ready ? <ResultPanel lesson={lesson} result={result} current={current} /> : <section className="panel empty-result" aria-live="polite"><div className="runtime-illustration"><FlaskConical size={28} /></div><h3>{runtime.status.state === 'error' ? 'Let’s reconnect Python.' : runtime.error ? 'A small adjustment is needed.' : dirty ? 'Make this experiment yours.' : 'Warming up the lab.'}</h3><p>{runtime.status.state === 'error' ? runtime.status.message : runtime.error ? runtime.error : dirty ? 'Apply your inputs to see their transformation, one byte at a time.' : runtime.status.message}</p>{runtime.status.state === 'loading' && <div className="runtime-progress" role="progressbar" aria-label="Loading browser Python" aria-valuenow={runtime.status.progress} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${runtime.status.progress}%` }} /></div>}{runtime.status.state === 'error' && <><button className="secondary-button" onClick={runtime.retry}><RotateCcw size={15} />Restart Python</button><small>Missing runtime files? Run <code>npm run setup:runtime</code> once.</small></>}{runtime.error && <button className="secondary-button" onClick={restoreExample}>Try the example <ArrowRight size={15} /></button>}{dirty && <button className="secondary-button" onClick={() => commit()}>Apply inputs <ArrowRight size={15} /></button>}<span className="empty-result-note"><ShieldCheck size={13} />Calculations happen entirely in this browser.</span></section>}</div>
           <div className="insight"><span className="insight-icon"><BookOpen size={18} /></span><div><strong>A little deeper</strong><p>{lesson.insight}</p></div></div>
           <div className="playback-bar"><div className="playback-left"><button className="play-button" onClick={() => { if (current === 7) setCurrent(0); setPlaying(!playing); }} disabled={!ready} aria-label={playing ? 'Pause walkthrough' : 'Play walkthrough'}>{playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}<span>{playing ? 'Pause' : 'Play'}</span></button><button className="icon-button reset-button" onClick={() => selectStep(0)} disabled={!ready} title="Restart walkthrough" aria-label="Restart walkthrough"><RotateCcw size={16} /></button><span className="playback-progress">Step <strong>{current + 1}</strong> of 8</span></div><div className="playback-right"><button className="back-button" aria-label="Previous step" onClick={() => selectStep(current - 1)} disabled={!ready || current === 0}><ArrowLeft size={16} /><span>Previous</span></button><button className="primary-button next-button" onClick={() => selectStep(current === 7 ? 0 : current + 1)} disabled={!ready}>{current === 7 ? 'Explore again' : 'Next step'}{current === 7 ? <RotateCcw size={15} /> : <ArrowRight size={16} />}</button></div></div>
         </section>
+        {isP2sh && <section className="locking-card panel" aria-label="What locks the funds">
+          <div className="locking-heading"><span className="section-index">03</span><h2>What actually locks the funds?</h2></div>
+          <div className="concept-grid"><div><span>01 / REDEEM SCRIPT</span><h3>The spending rule</h3><p>The full rule and its public keys. The spender reveals it when spending.</p></div><div><span>02 / P2SH ADDRESS</span><h3>The shareable encoding</h3><p>A network version, script hash, and checksum encoded for sharing.</p></div><div><span>03 / OUTPUT SCRIPT</span><h3>The lock on the funds</h3><p>The transaction output commits to the script hash below.</p></div></div>
+          <code className="locking-asm">OP_HASH160 &lt;20-byte script hash&gt; OP_EQUAL</code>
+          {ready && runtime.trace?.outputScript ? <><ByteExplorer key={runtime.trace.address} result={runtime.trace.outputScript} /><details className="spend-details"><summary>See the Python that creates this output script</summary><pre>{runtime.trace.outputScript.python}</pre><CopyButton label="Copy full Python example" value={`${runtime.trace.pythonPreamble}\n\n${runtime.trace.steps.map((step) => step.python).join('\n\n')}\n\n${runtime.trace.outputScript.python}\nprint(output_script.to_hex())`} /></details></> : <p className="pending-output">Apply valid inputs to inspect the calculated output script.</p>}
+          <details className="spend-details"><summary>How is it spent?</summary><p>The spender reveals the original redeem script. Its HASH160 must match the commitment in the output. Bitcoin then executes that redeem script: this example requires {input.threshold} valid {input.threshold === 1 ? 'signature' : 'signatures'} corresponding to its public keys.</p><p>This is a conceptual explanation. The walkthrough constructs scripts and addresses; it does not execute scripts or sign transactions.</p></details>
+          <div className="experiments"><span className="eyebrow">TRY IT YOURSELF</span><h3>Small changes. Different commitments.</h3><ul><li>Change 2-of-3 to 3-of-3. Watch the first opcode, hash, and address change.</li><li>Swap two public keys. The key order is part of the script.</li><li>Switch networks. The redeem script and its hash stay the same; the version, checksum, and address change.</li></ul></div>
+        </section>}
         <footer className="lesson-footer"><span><span className="small-dot" />Real calculations. No magic. Just Bitcoin.</span><a href="https://github.com/karask/python-bitcoin-utils" target="_blank" rel="noreferrer">python-bitcoin-utils <span>0.8.5</span><ArrowUpRight size={12} /></a></footer>
       </main>
     </div>

@@ -1,8 +1,12 @@
 export type Network = 'mainnet' | 'testnet';
 export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
+export type LessonKind = 'p2pkh' | 'p2sh';
 
 export interface LessonInput {
+  kind?: LessonKind;
+  publicKeys?: string[];
+  threshold?: number;
   publicKey: string;
   compressed: boolean;
   network: Network;
@@ -27,6 +31,7 @@ export interface StepResult {
 }
 
 export interface LessonTrace {
+  outputScript?: StepResult;
   network: Network;
   compressed: boolean;
   publicKey: string;
