@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import type { ByteField, CodeMode, LessonInput, LessonKind, LessonTrace, StepResult, Theme } from './types';
 import { EXAMPLE_PUBLIC_KEY, EXAMPLE_PUBLIC_KEYS } from './lessons';
-import { CATALOG, LESSON_ORDER, lessonFromHash } from './lessonCatalog';
+import { CATALOG, LESSON_ORDER, TRANSACTION_ORDER, isTransactionPage, lessonFromHash } from './lessonCatalog';
 import { SymbolExplorer, AddressParts } from './EncodingExplorer';
 import { ComparisonTable } from './ComparisonTable';
 import type { LessonStep } from './lessons';
@@ -57,7 +57,7 @@ function Sidebar({ open, close, onAbout, kind }: { kind: LessonKind; open: boole
         <button type="button" className="topic-label" aria-expanded={addressesExpanded} aria-controls="address-lessons" onClick={() => setAddressesExpanded((expanded) => !expanded)}><span className="topic-icon"><Fingerprint size={18} /></span><span>Addresses</span>{addressesExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button>
         <div id="address-lessons" className="subnav" hidden={!addressesExpanded}>{addressesExpanded && LESSON_ORDER.map((id) => <a key={id} href={`#${id}`} onClick={close} aria-current={kind === id ? 'page' : undefined}><span className="active-dot" /><span>{CATALOG[id].nav}</span><span className="nav-tag">{id === 'nested' ? 'WRAPPED' : CATALOG[id].tag}</span></a>)}</div>
         <button type="button" className="topic-label" aria-expanded={transactionsExpanded} aria-controls="transaction-lessons" onClick={() => setTransactionsExpanded((expanded) => !expanded)}><span className="topic-icon"><ArrowRight size={18} /></span><span>Transactions</span>{transactionsExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button>
-        <div id="transaction-lessons" className="subnav" hidden={!transactionsExpanded}>{transactionsExpanded && <a href="#transaction" onClick={close} aria-current={kind === 'transaction' ? 'page' : undefined}><span className="active-dot" /><span>Transaction anatomy</span><span className="nav-tag">P2PKH</span></a>}</div>
+        <div id="transaction-lessons" className="subnav" hidden={!transactionsExpanded}>{transactionsExpanded && TRANSACTION_ORDER.map((id) => <a key={id} href={`#${id}`} onClick={close} aria-current={kind === id ? 'page' : undefined}><span className="active-dot" /><span>{CATALOG[id].nav}</span></a>)}</div>
       </nav>
       <div className="sidebar-note"><div className="note-icon"><FlaskConical size={19} /></div><h3>A little curiosity goes a long way.</h3><p>Change an input. Follow the bytes. See what Bitcoin is really made of.</p><button onClick={onAbout}>How this lab works <ArrowUpRight size={14} /></button></div>
       <div className="sidebar-bottom"><div className="local-label"><span /> A browser-native playground</div><a href="https://github.com/karask/python-bitcoin-utils" target="_blank" rel="noreferrer">Built with <strong>python-bitcoin-utils</strong><ArrowUpRight size={12} /></a><span className="sidebar-version">Made for learning. Powered by real code.</span></div>
@@ -179,18 +179,20 @@ export default function App() {
   const result = runtime.trace?.steps[current];
   const ready = !!runtime.trace && !runtime.busy && !dirty;
 
-  useEffect(() => { if (input.kind !== 'transaction') calculate(input); }, [input, calculate]);
+  useEffect(() => { if (!isTransactionPage(input.kind ?? 'p2pkh')) calculate(input); }, [input, calculate]);
   useEffect(() => {
     function navigate() {
       const next = lessonFromHash(location.hash);
       if (!next) return;
-      invalidate(); setDirty(false); setPlaying(false); setCurrent(0);
+      if (!isTransactionPage(next) || !isTransactionPage(input.kind ?? 'p2pkh')) invalidate();
+      setDirty(false); setPlaying(false); setCurrent(0);
+      window.scrollTo({ top: 0, behavior: 'instant' });
       setInput((previous) => ({ ...previous, kind: next }));
       setDraft(input.publicKey); setDraftKeys(input.publicKeys ?? EXAMPLE_PUBLIC_KEYS);
     }
     window.addEventListener('hashchange', navigate);
     return () => window.removeEventListener('hashchange', navigate);
-  }, [invalidate, input.publicKey, input.publicKeys]);
+  }, [invalidate, input.publicKey, input.publicKeys, input.kind]);
   useEffect(() => {
     if (drawerOpen) {
       drawerHadOpened.current = true;
@@ -220,7 +222,7 @@ export default function App() {
     function handleKey(event: KeyboardEvent) {
       if (event.key === 'Escape') setDrawerOpen(false);
       const target = event.target as HTMLElement;
-      if (kind === 'transaction' || !ready || aboutOpen || /INPUT|TEXTAREA|SELECT|BUTTON/.test(target.tagName) || event.altKey || event.metaKey || event.ctrlKey) return;
+      if (isTransactionPage(kind) || !ready || aboutOpen || /INPUT|TEXTAREA|SELECT|BUTTON/.test(target.tagName) || event.altKey || event.metaKey || event.ctrlKey) return;
       if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
         event.preventDefault(); setPlaying(false);
         setCurrent((value) => Math.max(0, Math.min(lastStep, value + (event.key === 'ArrowRight' ? 1 : -1))));
@@ -247,9 +249,10 @@ export default function App() {
     <a href="#lesson-content" className="skip-link">Skip to lesson</a>
     <Sidebar kind={kind} open={drawerOpen} close={() => setDrawerOpen(false)} onAbout={() => { setAboutOpen(true); setDrawerOpen(false); }} />
     <div className="app-main" inert={drawerOpen}>
-      <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="lesson-navigation" onClick={() => setDrawerOpen(true)}><Menu size={20} /></button><span className="breadcrumb-home">The learning lab</span><ChevronRight size={13} /><span>{kind === 'transaction' ? 'Transactions' : 'Addresses'}</span><ChevronRight size={13} /><strong>{definition.tag}</strong></div><div className="topbar-actions"><span className={`runtime-pill ${runtime.status.state}`} title={runtime.status.message}><span />{runtime.status.state === 'ready' ? 'Runs in your browser' : runtime.status.state === 'error' ? 'Python needs attention' : 'Starting Python'}</span><span className="toolbar-divider" /><button className="icon-button" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button><button className="icon-button help-button" aria-label="About this learning lab" onClick={() => setAboutOpen(true)}><HelpCircle size={18} /></button></div></header>
+      <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="lesson-navigation" onClick={() => setDrawerOpen(true)}><Menu size={20} /></button><span className="breadcrumb-home">The learning lab</span><ChevronRight size={13} /><span>{isTransactionPage(kind) ? 'Transactions' : 'Addresses'}</span><ChevronRight size={13} /><strong>{definition.tag}</strong></div><div className="topbar-actions"><span className={`runtime-pill ${runtime.status.state}`} title={runtime.status.message}><span />{runtime.status.state === 'ready' ? 'Runs in your browser' : runtime.status.state === 'error' ? 'Python needs attention' : 'Starting Python'}</span><span className="toolbar-divider" /><button className="icon-button" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button><button className="icon-button help-button" aria-label="About this learning lab" onClick={() => setAboutOpen(true)}><HelpCircle size={18} /></button></div></header>
       <main id="lesson-content" className="lesson-content">
-        {kind === 'transaction' ? <TransactionLesson runtime={runtime} /> : <>
+        <div hidden={!isTransactionPage(kind)}><TransactionLesson runtime={runtime} visible={isTransactionPage(kind)} page={isTransactionPage(kind) ? kind : 'transaction'} /></div>
+        {!isTransactionPage(kind) && <>
         <section className="hero" id={kind}><div className="hero-copy"><div className="hero-meta"><span className="chapter-tag">CHAPTER {String(LESSON_ORDER.indexOf(kind) + 1).padStart(2, '0')}</span><span>ADDRESSES</span><span className="hero-meta-dot">·</span><span>{steps.length} {kind === 'compare' ? 'constructions, one key' : 'steps, one transformation'}</span></div><h1>{definition.title}<br /><span>{definition.accent}</span></h1><p>{definition.description}</p></div><div className="hero-art" aria-hidden="true"><div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" /><div className="art-core"><Fingerprint size={46} strokeWidth={1.2} /></div><span className="art-label label-top">{definition.multisig ? 'spending rule' : 'public key'}</span><span className="art-label label-bottom">{definition.tag}</span><span className="orbit-dot dot-one" /><span className="orbit-dot dot-two" /><span className="art-spark">+</span></div></section>
 
         {definition.multisig ? <MultisigBuilder input={input} keys={draftKeys} dirty={dirty} error={runtime.error} edit={editKeys} commit={commit} restore={restoreExample} /> : <section className="input-card" aria-label="Lesson inputs"><div className="input-card-heading"><div><span className="section-index">01</span><h2>Your starting point</h2><span className="input-helper">Change it. See what happens.</span></div><button className="text-button" onClick={restoreExample}><RotateCcw size={13} />Use example</button></div><form onSubmit={(event) => { event.preventDefault(); commit(); }}><div className="public-key-input"><label htmlFor="public-key">Public key <span>{kind === 'p2pkh' ? 'SEC format' : 'Compressed SEC · 33 bytes'} · hexadecimal</span></label><div className={`key-input-wrap ${runtime.error ? 'has-error' : ''}`}><Fingerprint size={16} /><input id="public-key" value={draft} onChange={(event) => editKey(event.target.value)} spellCheck={false} autoComplete="off" aria-invalid={!!runtime.error} aria-describedby={runtime.error ? 'input-error' : 'key-help'} /><button type="submit" className={`apply-input ${dirty ? 'dirty' : ''}`} aria-label="Apply public key" title="Apply public key"><ArrowRight size={17} /></button></div><span id="key-help" className="sr-only">{kind === 'p2pkh' ? 'Use a 33-byte compressed or 65-byte uncompressed public key.' : 'Use a 33-byte compressed public key beginning with 02 or 03.'} Apply your changes to recalculate.</span></div><div className="input-options"><div><label htmlFor="network">Network</label><div className="select-wrap"><span className={`network-dot ${input.network}`} /><select id="network" value={input.network} onChange={(event) => commit({ network: event.target.value as LessonInput['network'] })}><option value="mainnet">Mainnet</option><option value="testnet">Testnet</option></select><ChevronDown size={13} /></div></div>{kind === 'p2pkh' && <div><span className="control-label" id="format-label">Public-key format</span><div className="segmented format-toggle" role="group" aria-labelledby="format-label"><button type="button" className={input.compressed ? 'selected' : ''} onClick={() => commit({ compressed: true })} aria-pressed={input.compressed}>Compressed</button><button type="button" className={!input.compressed ? 'selected' : ''} onClick={() => commit({ compressed: false })} aria-pressed={!input.compressed}>Uncompressed</button></div></div>}</div></form>{runtime.error && <div className="input-error" id="input-error" role="alert"><Info size={15} />{runtime.error}</div>}{dirty && <p className="draft-notice">Press Enter or the arrow to apply your public key.</p>}</section>}

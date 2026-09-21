@@ -1,7 +1,13 @@
 export type Network = 'mainnet' | 'testnet';
 export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
-export type LessonKind = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | 'transaction';
+export type TransactionPage = 'transaction' | 'signing' | 'propagation' | 'mining';
+export type LessonKind = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
+export interface MiningResult {
+  target: string; bits: string; header: string; python: string;
+  attempts: { nonce: number; hash: string; success: boolean }[];
+  nextNonce: number; found: boolean;
+}
 
 export interface TransactionDraft {
   inputs: { txid: string; vout: string; amount: string; source: string; sourceType: 'address' | 'script'; privateKey?: string; compressed?: boolean }[];
@@ -19,6 +25,7 @@ export interface TransactionResult {
 }
 
 export interface LessonInput {
+  mining?: { startNonce: number; difficulty: 'easy' | 'harder'; count: number };
   signTransaction?: boolean;
   transaction?: TransactionDraft;
   kind?: LessonKind;
@@ -52,6 +59,7 @@ export interface StepResult {
 }
 
 export interface LessonTrace {
+  mining?: MiningResult;
   transaction?: TransactionResult;
   outputScript?: StepResult;
   relatedScripts?: { title: string; result: StepResult }[];

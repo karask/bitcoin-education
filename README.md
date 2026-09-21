@@ -19,7 +19,10 @@ Append a lesson fragment to `/bitcoin-education/`:
 | `#nested` | P2WPKH redeem script → outer P2SH address |
 | `#p2tr` | X-only internal key → TapTweak → output key → Bech32m |
 | `#compare` | Six address constructions and locking scripts from one key |
-| `#transaction` | UTXOs → outputs and fee → unsigned bytes → P2PKH signatures |
+| `#transaction` | Transaction anatomy: UTXOs, outputs, fees, unsigned bytes |
+| `#signing` | P2PKH digests, signatures, scriptSigs, signed bytes |
+| `#propagation` | Node relay and separate local mempools |
+| `#mining` | Candidate selection, sample header hashing, simulated confirmations |
 
 SegWit inputs use compressed SEC public keys. Taproot starts from a compressed
 SEC key and explains its x-only interpretation; this example has no script
@@ -44,6 +47,23 @@ compares unsigned and signed sizes and transaction IDs. No Script VM, on-chain
 UTXO validation, or broadcasting is provided. The library has no public
 transaction-signature verification API; tests independently construct legacy
 SIGHASH_ALL digests and verify the signatures with ECDSA.
+
+Four separate transaction menu items share the in-memory draft and signed
+transaction, including when navigating to address lessons and back. Next-step
+links connect Anatomy → Signing → Propagation → Mining. Directly opening a later
+stage offers a signed public example; reload starts a fresh session.
+
+In Propagation, play or step through modeled announcements,
+requests, receipts, and admission. Select any of five nodes to inspect its own
+mempool; change C's illustrative fee threshold, remove a referenced output at
+C, or disconnect E. Added fee competition affects only the selected snapshot.
+The scene uses the actual signed TXID and bytes, assumed starting UTXOs, and
+explicitly modeled validation. No real network broadcast takes place, and the
+transaction stays unconfirmed there. Mining adds selection among independent
+entries, real `BlockHeader` hashing with an easy demonstration target, and
+separately simulated per-node block acceptance and confirmation depth. The hash
+exercise uses a supplied root, not a calculated commitment to the candidate.
+See [LIBRARY_GAPS.md](LIBRARY_GAPS.md) for the remaining validation and mining APIs.
 
 ## Start locally
 

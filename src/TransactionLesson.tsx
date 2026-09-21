@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, Copy, Plus, RotateCcw, Trash2 } from 'lucide-react';
-import type { Network, TransactionDraft } from './types';
+import type { LessonTrace, Network, TransactionDraft, TransactionPage } from './types';
+import { CATALOG, TRANSACTION_ORDER } from './lessonCatalog';
 import type { usePython } from './usePython';
 import './transaction.css';
+import { TransactionJourney } from './TransactionJourney';
+import { MiningLesson } from './MiningLesson';
 
 const addresses = {
   mainnet: ['1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH', '1cMh228HTCiwS8ZsaakH8A8wze1JR5ZsP'],
@@ -24,33 +27,51 @@ function CopyValue({ value, label }: { value: string; label: string }) {
   }}>{message === 'Copied' ? <Check size={14} /> : <Copy size={14} />}{message || label}</button>;
 }
 
-export function TransactionLesson({ runtime }: { runtime: ReturnType<typeof usePython> }) {
+export function TransactionLesson({ runtime, page, visible }: { runtime: ReturnType<typeof usePython>; page: TransactionPage; visible: boolean }) {
   const [network, setNetwork] = useState<Network>('mainnet');
   const [draft, setDraft] = useState<TransactionDraft>(() => example('mainnet'));
   const [dirty, setDirty] = useState(false);
   const [selected, setSelected] = useState('tx-0');
+  const [unsignedTrace, setUnsignedTrace] = useState<LessonTrace | null>(null);
+  const [signedTrace, setSignedTrace] = useState<LessonTrace | null>(null);
+  const started = useRef(false);
   const { calculate, invalidate } = runtime;
   useEffect(() => {
-    calculate({ kind: 'transaction', transaction: example('mainnet'), network: 'mainnet', publicKey: '', compressed: true });
-  }, [calculate]);
-  const trace = !dirty ? runtime.trace : null;
+    if (!visible) return;
+    if (page === 'transaction' && (!started.current || (!unsignedTrace && !dirty))) {
+      calculate({ kind: 'transaction', transaction: draft, network, publicKey: '', compressed: true });
+    }
+    started.current = true;
+    // Route changes restore a missing unsigned view once; edits require explicit build.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, page, calculate]);
+  useEffect(() => {
+    if (!runtime.trace?.transaction) return;
+    if (runtime.trace.transaction.signing) setSignedTrace(runtime.trace);
+    else setUnsignedTrace(runtime.trace);
+  }, [runtime.trace]);
+  const trace = !dirty ? (page === 'transaction' ? unsignedTrace : signedTrace) : null;
   const data = trace?.transaction;
   const result = data ? trace?.steps[0] : null;
   const active = data?.fields.find((field) => field.id === selected) ?? data?.fields[0];
-  function edit(next: TransactionDraft) { invalidate(); setDraft(next); setDirty(true); }
+  function edit(next: TransactionDraft) { invalidate(); setDraft(next); setDirty(true); setUnsignedTrace(null); setSignedTrace(null); }
   function build(next = draft, net = network, signTransaction = false) {
     setSelected('tx-0'); setDirty(false);
+    setSignedTrace(null);
+    if (!signTransaction) setUnsignedTrace(null);
     calculate({ kind: 'transaction', transaction: next, network: net, publicKey: '', compressed: true, signTransaction });
   }
-  function restore() { const next = example(network); setDraft(next); build(next); }
+  function restore(sign = false) { const next = example(network); setDraft(next); setUnsignedTrace(null); build(next, network, sign); }
   const sats = (amount: number) => amount.toLocaleString('en-US');
 
   return <div className="transaction-lesson">
-    <section className="hero"><div className="hero-copy"><div className="hero-meta"><span className="chapter-tag">TRANSACTIONS / 01</span><span>P2PKH · BUILD & SIGN</span></div><h1>A transaction,<br /><span>piece by piece.</span></h1><p>Choose the coins. Create the outputs. Sign and follow every byte.</p></div><div className="tx-hero-diagram" aria-hidden="true"><span>UTXOs</span><ArrowRight size={24} /><span>New outputs</span><small>the difference becomes the fee</small></div></section>
+    <section className="hero"><div className="hero-copy"><div className="hero-meta"><span className="chapter-tag">TRANSACTIONS / 0{TRANSACTION_ORDER.indexOf(page) + 1}</span><span>{CATALOG[page].tag}</span></div><h1>{CATALOG[page].title}<br /><span>{CATALOG[page].accent}</span></h1><p>{CATALOG[page].description}</p></div></section>
+    <nav className="tx-page-path" aria-label="Transaction learning path">{TRANSACTION_ORDER.map((id, index) => <a key={id} href={`#${id}`} aria-current={page === id ? 'page' : undefined}><span>0{index + 1}</span>{CATALOG[id].nav}</a>)}</nav>
 
+    {page === 'transaction' && <>
     <form className="tx-builder" onSubmit={(event) => { event.preventDefault(); build(); }}>
-      <div className="tx-section-heading"><div><span className="section-index">01</span><h2>Build your transaction</h2></div><button type="button" className="text-button" onClick={restore}><RotateCcw size={14} />Use example</button></div>
-      <div className="tx-network"><label htmlFor="tx-network">Address network</label><select id="tx-network" value={network} onChange={(event) => { invalidate(); setNetwork(event.target.value as Network); setDirty(true); }}><option value="mainnet">Mainnet</option><option value="testnet">Testnet</option></select><span>Changing networks keeps your entries. Use example to load matching addresses.</span></div>
+      <div className="tx-section-heading"><div><span className="section-index">01</span><h2>Build your transaction</h2></div><button type="button" className="text-button" onClick={() => restore()}><RotateCcw size={14} />Use example</button></div>
+      <div className="tx-network"><label htmlFor="tx-network">Address network</label><select id="tx-network" value={network} onChange={(event) => { edit(draft); setNetwork(event.target.value as Network); }}><option value="mainnet">Mainnet</option><option value="testnet">Testnet</option></select><span>Changing networks keeps your entries. Use example to load matching addresses.</span></div>
       <p className="tx-context">The example uses a fictional UTXO. Enter your own details below; existence, ownership, and unspent status are not checked. Building unsigned needs no private key.</p>
       <div className="tx-columns">
         <section className="panel tx-edit-panel" aria-label="Transaction inputs"><div className="tx-card-heading"><div><span className="output-kicker">SPEND EXISTING COINS</span><h3>Inputs <span>{draft.inputs.length}</span></h3></div><button className="text-button" type="button" disabled={draft.inputs.length >= 20} onClick={() => edit({ ...draft, inputs: [...draft.inputs, { txid: '', vout: '0', amount: '', source: '', sourceType: 'address' }] })}><Plus size={14} />Add UTXO</button></div>
@@ -62,7 +83,6 @@ export function TransactionLesson({ runtime }: { runtime: ReturnType<typeof useP
               <label>Previous output identified by<select aria-label={`Input ${index + 1} source type`} value={row.sourceType} onChange={(e) => change({ sourceType: e.target.value as 'address' | 'script', source: '' })}><option value="address">P2PKH address</option><option value="script">P2PKH locking script (hex)</option></select></label>
               <label>{row.sourceType === 'address' ? 'Previous P2PKH address' : 'Previous scriptPubKey'}<input aria-label={`Input ${index + 1} previous lock`} value={row.source} onChange={(e) => change({ source: e.target.value })} placeholder={row.sourceType === 'address' ? 'Address that received this UTXO' : '76a914…88ac'} spellCheck={false} autoComplete="off" /></label>
               <p className="tx-entry-note">The amount and previous lock are context, not bytes in the new input.</p>
-              <details className="tx-key-options"><summary>Signing key & public-key format</summary><label>Learning private key · 32-byte hex<input aria-label={`Input ${index + 1} private key`} value={row.privateKey ?? ''} onChange={(e) => change({ privateKey: e.target.value })} placeholder="64 hex characters" autoComplete="off" spellCheck={false} /></label><label>Public-key format<select aria-label={`Input ${index + 1} public-key format`} value={row.compressed === false ? 'uncompressed' : 'compressed'} onChange={(e) => change({ compressed: e.target.value === 'compressed' })}><option value="compressed">Compressed · 33 bytes</option><option value="uncompressed">Uncompressed · 65 bytes</option></select></label><p className="tx-entry-note">The example key is the public number 1. Use disposable learning keys only. Keys stay in this browser and are included in the displayed and copied Python.</p></details>
             </fieldset>;
           })}
         </section>
@@ -78,13 +98,26 @@ export function TransactionLesson({ runtime }: { runtime: ReturnType<typeof useP
         </section>
       </div>
       <div className="tx-build-actions"><button className="primary-button" type="submit" disabled={runtime.busy || runtime.status.state === 'error'}>{runtime.busy ? 'Building in Python…' : 'Build unsigned transaction'}<ArrowRight size={15} /></button><span>Version 2 · final sequences · locktime 0</span></div>
-      <section className="panel tx-sign-action" aria-label="Sign P2PKH transaction"><div><span className="output-kicker">NEXT / AUTHORIZE EACH INPUT</span><h3>Fill the empty scriptSigs.</h3><p>Sign every input with its matching key using SIGHASH_ALL. The library adds a signature and public key to each input. The example is ready to try with the public learning key 1.</p></div><button className="primary-button" type="button" disabled={runtime.busy || runtime.status.state !== 'ready'} onClick={() => build(draft, network, true)}>Sign P2PKH transaction<ArrowRight size={15} /></button></section>
       {runtime.error && <p className="input-error" role="alert">{runtime.error}</p>}
       {dirty && <p className="draft-notice" role="status">Inputs changed. Build again to update the bytes and fee.</p>}
-    </form>
+    </form></>}
+    {page === 'signing' && <section className="input-card tx-signing-form" aria-label="Signing inputs">
+      <div className="tx-section-heading"><h2>Authorize your transaction</h2><button type="button" className="text-button" onClick={() => restore(true)}>Use signed example</button></div>
+      <p className="tx-context">{draft.inputs.length} inputs · {draft.outputs.length} outputs · {network}. Your transaction carries forward from Anatomy. <a href="#transaction">Edit UTXOs and outputs →</a></p>
+      {draft.inputs.map((row, index) => {
+        const change = (updates: Partial<typeof row>) => edit({ ...draft, inputs: draft.inputs.map((item, i) => i === index ? { ...item, ...updates } : item) });
+        return <div key={index} className="tx-signing-input"><h3>Input {index + 1}</h3><code className="tx-selected-hex">{row.txid}:{row.vout}</code>
+              <details className="tx-key-options" open><summary>Signing key & public-key format</summary><label>Learning private key · 32-byte hex<input aria-label={`Input ${index + 1} private key`} value={row.privateKey ?? ''} onChange={(e) => change({ privateKey: e.target.value })} placeholder="64 hex characters" autoComplete="off" spellCheck={false} /></label><label>Public-key format<select aria-label={`Input ${index + 1} public-key format`} value={row.compressed === false ? 'uncompressed' : 'compressed'} onChange={(e) => change({ compressed: e.target.value === 'compressed' })}><option value="compressed">Compressed · 33 bytes</option><option value="uncompressed">Uncompressed · 65 bytes</option></select></label><p className="tx-entry-note">The example key is the public number 1. Use disposable learning keys only. Keys stay in this browser and are included in the displayed and copied Python.</p></details>
+        </div>;
+      })}
+      <section className="panel tx-sign-action" aria-label="Sign P2PKH transaction"><div><span className="output-kicker">NEXT / AUTHORIZE EACH INPUT</span><h3>Fill the empty scriptSigs.</h3><p>Sign every input with its matching key using SIGHASH_ALL. The library adds a signature and public key to each input. The example is ready to try with the public learning key 1.</p></div><button className="primary-button" type="button" disabled={runtime.busy || runtime.status.state !== 'ready'} onClick={() => build(draft, network, true)}>Sign P2PKH transaction<ArrowRight size={15} /></button></section>
+    </section>}
+    {page !== 'transaction' && runtime.error && <p className="input-error" role="alert">{runtime.error}</p>}
+    {page === 'signing' && dirty && <p className="draft-notice">Inputs changed. Sign again to create a new result.</p>}
+    {(page === 'propagation' || page === 'mining') && !signedTrace && <section className="panel tx-stage-empty"><h2>Start with a signed transaction</h2><p>Continue from Signing, or load the public example to explore this lesson independently.</p><a className="secondary-button" href="#signing">Go to signing</a><button className="primary-button" disabled={runtime.busy || runtime.status.state !== 'ready'} onClick={() => restore(true)}>Use signed example</button></section>}
 
     {runtime.status.state !== 'ready' && <div className="tx-runtime panel" role="status"><p>{runtime.status.message}</p>{runtime.status.state === 'error' ? <button className="secondary-button" onClick={runtime.retry}>Restart Python</button> : <progress max="100" value={runtime.status.progress} aria-label="Loading Python" />}</div>}
-    {data && result && active && <>
+    {(page === 'transaction' || page === 'signing') && data && result && active && <>
       <section className="tx-flow" aria-label="Transaction balance"><div><span>INPUT VALUE</span><strong>{sats(data.totalInput)} <small>sats</small></strong></div><span aria-hidden="true">−</span><div><span>OUTPUT VALUE</span><strong>{sats(data.totalOutput)} <small>sats</small></strong></div><span aria-hidden="true">=</span><div className="tx-fee"><span>IMPLIED FEE</span><strong data-testid="tx-fee">{sats(data.fee)} <small>sats</small></strong></div></section>
       <p className="tx-context">The fee depends on the previous amounts you supplied. It has no field in the transaction. {data.signing ? `This signed legacy transaction is ${result.byteLength} bytes / ${result.byteLength} vbytes. Its implied fee rate is ${(data.fee / result.byteLength).toFixed(2)} sat/vB.` : `This unsigned draft is ${result.byteLength} bytes; signatures will increase its size, so this is not a final fee-rate estimate.`}</p>
       {data.signing && <section className="panel tx-signing-results" aria-label="Signing walkthrough"><span className="output-kicker">FROM EMPTY INPUTS TO SIGNATURES</span><h2>What did we sign?</h2><p>For each input, the library creates a temporary transaction with empty scriptSigs, then inserts that input’s previous locking script in its place. It appends SIGHASH_ALL as four bytes and double-SHA-256 hashes that serialization. This digest is signed; it is not the transaction ID.</p><p>SIGHASH_ALL commits to all outpoints, sequences, outputs, version, and locktime. Legacy P2PKH signing does not commit to previous input amounts. Changing a supplied amount can change the displayed fee without changing a signature.</p>{data.signing.inputs.map((item, index) => <details key={index} open={data.signing!.inputs.length === 1}><summary>Input {index + 1} · digest → signature → scriptSig</summary><h4>Signing digest · 32 bytes</h4><code className="tx-selected-hex">{item.digest}</code><h4>Signature · DER + 01 (SIGHASH_ALL)</h4><code className="tx-selected-hex">{item.signature}</code><h4>Public key · matched to the supplied P2PKH lock</h4><code className="tx-selected-hex">{item.publicKey}</code><h4>Unlocking script · two data pushes</h4><code className="tx-selected-hex">{item.scriptSig}</code></details>)}<p>The library created these signatures and the public keys match the supplied locks. This lab does not execute Script, verify UTXOs on-chain, or broadcast transactions.</p><div className="tx-size-comparison"><span>Unsigned <strong>{data.signing.unsignedBytes} bytes</strong></span><ArrowRight size={20} /><span>Signed <strong>{result.byteLength} bytes</strong></span><span>Added <strong>{result.byteLength - data.signing.unsignedBytes} bytes</strong></span></div><h4>Signed transaction ID</h4><code className="tx-selected-hex" data-testid="signed-txid">{data.signing.txid}</code><p>Calculated from the signed serialization. Legacy scriptSigs are part of the TXID, so signing changes it.</p><details><summary>Compare the unsigned serialization and ID</summary><h4>Unsigned draft ID · not the signed TXID</h4><code className="tx-selected-hex">{data.signing.unsignedTxid}</code><h4>Unsigned hex</h4><code className="tx-selected-hex">{data.signing.unsignedHex}</code></details></section>}
@@ -98,6 +131,11 @@ export function TransactionLesson({ runtime }: { runtime: ReturnType<typeof useP
       <details className="panel tx-python"><summary>Inspect the previous locking scripts</summary><p>These describe the UTXOs being spent. They enter the signing digest calculation, not the final scriptSigs.</p>{data.previousScripts.map((script, i) => <div key={i}><h4>Input {i + 1} · previous scriptPubKey</h4><code className="tx-selected-hex">{script}</code></div>)}</details>
       <div className="insight"><div><strong>Try changing just one thing.</strong><p>Reduce the change amount by 1 satoshi: the fee rises by 1. Edit a vout and look for its four little-endian bytes. Add another input to see a second outpoint, empty scriptSig, and sequence.</p></div></div>
     </>}
+    {signedTrace?.transaction?.signing && <>
+      <div hidden={page !== 'propagation'}><TransactionJourney key={signedTrace.transaction.signing.txid + ':' + signedTrace.transaction.fee} enabled={visible && page === 'propagation'} txid={signedTrace.transaction.signing.txid} hex={signedTrace.steps[0].hex} fee={signedTrace.transaction.fee} vsize={signedTrace.steps[0].byteLength} inputs={draft.inputs} scripts={signedTrace.transaction.previousScripts} /></div>
+      <div hidden={page !== 'mining'}><MiningLesson key={signedTrace.transaction.signing.txid + ':' + signedTrace.transaction.fee} runtime={runtime} txid={signedTrace.transaction.signing.txid} fee={signedTrace.transaction.fee} vsize={signedTrace.steps[0].byteLength} /></div>
+    </>}
+    <div className="tx-next-page">{page === 'transaction' && unsignedTrace && !dirty && <a className="primary-button" href="#signing">Continue to signing<ArrowRight size={15} /></a>}{page === 'signing' && signedTrace && !dirty && <a className="primary-button" href="#propagation">Explore propagation<ArrowRight size={15} /></a>}{page === 'propagation' && signedTrace && <a className="primary-button" href="#mining">Continue to mining<ArrowRight size={15} /></a>}</div>
     <div className="lesson-sources">Read the specification: <a href="https://developer.bitcoin.org/reference/transactions.html#raw-transaction-format" target="_blank" rel="noreferrer">Raw transaction format</a></div>
   </div>;
 }

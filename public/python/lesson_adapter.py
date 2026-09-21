@@ -578,9 +578,41 @@ def trace_transaction(request):
                                  previousScripts=previous_scripts, fields=fields, python=python, **({'signing': signing} if signing else {})))
 
 
+def trace_mining(request):
+    """Real library header hashing with an explicitly supplied, non-transaction root."""
+    options = request.get('mining', {})
+    start, count = options.get('startNonce', 0), options.get('count', 64)
+    difficulty = options.get('difficulty', 'easy')
+    if type(start) is not int or type(count) is not int or not 1 <= count <= 256 or not 0 <= start <= 0xffffffff or start + count > 0x100000000:
+        raise ValueError('Choose a valid uint32 nonce range and 1–256 attempts.')
+    if difficulty not in ('easy', 'harder'):
+        raise ValueError('Choose an available demonstration target.')
+    bits = 0x200fffff if difficulty == 'easy' else 0x1f7fffff
+    code = ("from bitcoinutils.block import BlockHeader\n\n"
+            "# Supplied fixture root: NOT computed from the learner's transaction.\n"
+            "header = BlockHeader(version=2, previous_block_hash=bytes(32),\n"
+            "                     merkle_root=bytes.fromhex('11' * 32),\n"
+            f"                     timestamp=1700000000, target_bits={bits}, nonce={start})\n"
+            "target = header.get_target_hex()\nattempts = []\n"
+            f"for nonce in range({start}, {start + count}):\n"
+            "    header.nonce = nonce\n    block_hash = header.get_block_hash()\n"
+            "    success = int(block_hash, 16) <= int(target, 16)\n"
+            "    attempts.append(dict(nonce=nonce, hash=block_hash, success=success))\n"
+            "    if success:\n        break\n"
+            "header_hex = header.serialize_header().hex()")
+    namespace = {}
+    exec(code, namespace)
+    attempts = namespace['attempts']
+    return dict(network='mainnet', compressed=True, publicKey='', address='', steps=[], pythonPreamble='',
+                mining=dict(target=namespace['target'], bits=f'{bits:08x}', header=namespace['header_hex'],
+                            python=code, attempts=attempts, nextNonce=attempts[-1]['nonce'] + 1, found=attempts[-1]['success']))
+
+
 def trace_lesson(request_json):
     request = json.loads(request_json)
     kind = request.get('kind', 'p2pkh')
+    if kind == 'mining':
+        return json.dumps(trace_mining(request))
     if kind == 'transaction':
         return json.dumps(trace_transaction(request))
     if kind == 'p2pkh':

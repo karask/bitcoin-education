@@ -86,3 +86,8 @@ test('P2PKH signing matches CPython for both SEC formats, networks, and multiple
   invalid.transaction.inputs[0].privateKey = '0'.repeat(63) + '2';
   assert.throws(() => adapter.trace_lesson(JSON.stringify(invalid)), /do not match/);
 });
+
+test('header hashing in WebAssembly matches independently checked CPython traces', () => {
+  const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_mining import vectors;print(json.dumps(vectors()))"], { cwd: root, encoding: 'utf8' }));
+  for (const vector of vectors) assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);
+});
