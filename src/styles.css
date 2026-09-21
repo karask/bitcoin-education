@@ -71,6 +71,11 @@ code, pre { font-family: 'JetBrains Mono', monospace; }
 .runtime-pill.ready > span { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
 .runtime-pill.error > span { background: var(--red); }
 .runtime-pill.loading > span { animation: pulse 1.2s ease-in-out infinite; }
+.calculation-toast { position: fixed; right: 24px; bottom: 24px; z-index: 80; display: flex; align-items: center; gap: 12px; min-width: 260px; max-width: calc(100vw - 32px); padding: 14px 16px; color: var(--text); background: color-mix(in srgb, var(--surface) 96%, transparent); border: 1px solid var(--accent-line); border-radius: 10px; box-shadow: 0 14px 36px #15181624; animation: calculation-arrive .18s ease-out; backdrop-filter: blur(8px); }
+.calculation-toast > svg { flex-shrink: 0; color: var(--accent); animation: calculation-spin .85s linear infinite; }
+.calculation-toast strong, .calculation-toast span { display: block; }
+.calculation-toast strong { font-size: 12px; font-weight: 600; }
+.calculation-toast span { color: var(--muted); font-size: 10px; margin-top: 3px; }
 .lesson-content { max-width: 1380px; margin: 0 auto; padding: 32px 44px 23px; }
 .hero { display: flex; justify-content: space-between; position: relative; min-height: 158px; gap: 20px; }
 .hero-copy { position: relative; z-index: 1; }
@@ -274,6 +279,8 @@ code, pre { font-family: 'JetBrains Mono', monospace; }
 
 @keyframes pulse { 50% { opacity: .3; } }
 @keyframes arrive { from { opacity: .35; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes calculation-spin { to { transform: rotate(360deg); } }
+@keyframes calculation-arrive { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 @media (min-width: 1500px) {
   .lesson-content { padding-top: 48px; }
   .hero { min-height: 195px; }
@@ -337,6 +344,7 @@ code, pre { font-family: 'JetBrains Mono', monospace; }
   .empty-result { min-height: 330px; }
 }
 @media (max-width: 700px) {
+  .calculation-toast { right: 16px; bottom: 16px; left: 16px; min-width: 0; }
   .sidebar { transform: translateX(-100%); visibility: hidden; transition: transform .22s, visibility .22s; width: 260px; padding-inline: 22px; }
   .sidebar.open { transform: translateX(0); visibility: visible; }
   .sidebar-brand { display: flex; align-items: center; justify-content: space-between; }

@@ -32,7 +32,19 @@ test('delivery and checking are separate, admission precedes announcements', () 
   assert.deepEqual(admitted.queue.map(e => e.kind), ['announce', 'announce']);
   const requested = advanceSimulation(admitted, defaults);
   assert.equal(requested.nodes.B, 'requested');
-  assert.equal(requested.nodes.C, 'unseen');
+  assert.equal(requested.nodes.C, 'requested');
+  assert.equal(requested.wave, 3);
+  assert.deepEqual(requested.logs.slice(-2).map(log => log.wave), [3, 3]);
+});
+
+test('each step processes one parallel wave and defers newly created messages', () => {
+  let state = initialSimulation(defaults);
+  state = advanceSimulation(state, defaults); // wallet -> A
+  state = advanceSimulation(state, defaults); // A checks and announces to B + C
+  assert.deepEqual(state.queue.map(event => `${event.from}-${event.to}-${event.kind}`), ['A-B-announce', 'A-C-announce']);
+  state = advanceSimulation(state, defaults); // B + C request concurrently
+  assert.deepEqual(state.queue.map(event => `${event.from}-${event.to}-${event.kind}`), ['A-B-receive', 'A-C-receive']);
+  assert.deepEqual(state.logs.slice(-2).map(log => log.wave), [3, 3]);
 });
 
 test('default fee policy differs locally; redundant announcements do not loop', () => {

@@ -1,7 +1,7 @@
 export type Network = 'mainnet' | 'testnet';
 export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
-export type TransactionPage = 'transaction' | 'signing' | 'propagation' | 'mining';
+export type TransactionPage = 'transaction' | 'signing' | 'propagation' | 'mining' | 'blocks';
 export type LessonKind = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
 export interface MiningResult {
   target: string; bits: string; header: string; python: string;

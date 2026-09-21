@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Check, ChevronDown,
   ChevronRight, Code2, Copy, Fingerprint, FlaskConical, HelpCircle, Info,
-  Menu, Moon, Pause, Play, RotateCcw, ShieldCheck, Sparkles, Sun, X,
+  LoaderCircle, Menu, Moon, Pause, Play, RotateCcw, ShieldCheck, Sparkles, Sun, X,
 } from 'lucide-react';
 import type { ByteField, CodeMode, LessonInput, LessonKind, LessonTrace, StepResult, Theme } from './types';
 import { EXAMPLE_PUBLIC_KEY, EXAMPLE_PUBLIC_KEYS } from './lessons';
@@ -288,6 +288,7 @@ export default function App() {
         <footer className="lesson-footer"><span><span className="small-dot" />Real calculations. No magic. Just Bitcoin.</span><a href="https://github.com/karask/python-bitcoin-utils" target="_blank" rel="noreferrer">python-bitcoin-utils <span>0.8.5</span><ArrowUpRight size={12} /></a></footer>
       </main>
     </div>
+    {runtime.activity && runtime.status.state === 'ready' && <div className="calculation-toast" role="status" aria-live="polite" aria-label="Python calculation in progress"><LoaderCircle size={19} aria-hidden="true" /><div><strong>Python is calculating…</strong><span>{kind === 'mining' ? 'Hashing the sample block header' : kind === 'signing' || kind === 'propagation' || kind === 'blocks' ? 'Building and signing the transaction' : kind === 'transaction' ? 'Building the transaction bytes' : 'Updating the lesson with your inputs'}</span></div></div>}
     {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
   </div>;
 }

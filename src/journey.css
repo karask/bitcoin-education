@@ -57,6 +57,7 @@
 .journey-event { padding: 18px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; margin: 18px 0 24px; min-height: 106px; }
 .journey-event > span { font-size: 9px; letter-spacing: 1px; color: var(--accent); }
 .journey-event p { margin: 8px 0 0; color: var(--secondary); }
+.journey-event ul { display: grid; gap: 8px; margin: 10px 0 0; padding-left: 18px; color: var(--secondary); font-size: 11px; line-height: 1.65; }
 .journey-inspection { display: grid; grid-template-columns: .85fr 1.15fr; gap: 24px; }
 .journey h3 { font-weight: 500; font-size: 18px; margin: 10px 0 16px; }
 .journey-decision dl { margin: 0; }
@@ -78,6 +79,7 @@
 .journey-history { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
 .journey-history ol { max-height: 230px; overflow-y: auto; color: var(--muted); font-size: 11px; line-height: 1.8; padding-left: 22px; }
 .journey-history li { padding: 5px 8px; }
+.journey-history li > span { display: inline-block; min-width: 55px; margin-right: 8px; color: var(--accent); font-size: 9px; text-transform: uppercase; }
 .journey-next { margin-top: 24px; background: var(--inset); border-radius: 8px; padding: 20px; }
 .journey-next strong { font-size: 13px; font-weight: 500; }
 .journey-next p { margin-bottom: 0; }

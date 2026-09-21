@@ -15,7 +15,8 @@ export interface Event { from: NodeId | 'wallet'; to: NodeId; kind: 'announce' |
 export interface Simulation {
   nodes: Record<NodeId, NodeStatus>;
   queue: Event[];
-  logs: { event: Event; text: string }[];
+  logs: { event: Event; text: string; wave: number }[];
+  wave: number;
   pools: Record<NodeId, Entry[]>;
   competitors: number;
 }
@@ -23,12 +24,12 @@ export function initialSimulation(options: SimulationOptions): Simulation {
   const entry = (id: string, vsize: number, feeRate: number): Entry => ({ id, label: `Example ${id}`, vsize, feeRate });
   return {
     nodes: { A: 'unseen', B: 'unseen', C: 'unseen', D: 'unseen', E: options.offlineE ? 'offline' : 'unseen' },
-    queue: [{ from: 'wallet', to: 'A', kind: 'receive' }], logs: [], competitors: 0,
+    queue: [{ from: 'wallet', to: 'A', kind: 'receive' }], logs: [], wave: 0, competitors: 0,
     pools: { A: [entry('α', 180, 2)], B: [entry('α', 180, 2), entry('β', 320, 8)],
       C: options.selectiveMinimum <= 8 ? [entry('β', 320, 8)] : [], D: [entry('α', 180, 2), entry('γ', 240, 12)], E: [entry('δ', 400, 3)] },
   };
 }
-export function advanceSimulation(state: Simulation, options: SimulationOptions): Simulation {
+function advanceEvent(state: Simulation, options: SimulationOptions, wave: number): Simulation {
   if (!state.queue.length) return state;
   const [event, ...remaining] = state.queue;
   const next: Simulation = { ...state, nodes: { ...state.nodes }, queue: remaining, logs: [...state.logs] };
@@ -63,8 +64,19 @@ export function advanceSimulation(state: Simulation, options: SimulationOptions)
       if (peer && peer !== event.from) next.queue.push({ from: event.to, to: peer, kind: 'announce' });
     }
   }
-  next.logs.push({ event, text });
+  next.logs.push({ event, text, wave });
   return next;
+}
+
+// Process the messages that were already in flight together. Messages created by
+// this wave wait for the next one, which keeps relay concurrent but still hop-by-hop.
+export function advanceSimulation(state: Simulation, options: SimulationOptions): Simulation {
+  if (!state.queue.length) return state;
+  const pending = state.queue.length;
+  const wave = (state.wave ?? 0) + 1;
+  let next = state;
+  for (let index = 0; index < pending; index += 1) next = advanceEvent(next, options, wave);
+  return { ...next, wave };
 }
 export function addCompetition(state: Simulation, node: NodeId, minimum = 0): Simulation {
   if (state.nodes[node] === 'offline' || state.competitors >= 8) return state;

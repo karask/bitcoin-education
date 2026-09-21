@@ -55,12 +55,13 @@ interface LessonDefinition {
   summary?: string; spending?: string; experiments?: string[]; references: number[];
 }
 export const LESSON_ORDER: LessonKind[] = ['p2pkh', 'p2sh', 'p2wpkh', 'p2wsh', 'nested', 'p2tr', 'compare'];
-export const TRANSACTION_ORDER = ['transaction', 'signing', 'propagation', 'mining'] as const;
+export const TRANSACTION_ORDER = ['transaction', 'signing', 'propagation', 'mining', 'blocks'] as const;
 export function isTransactionPage(kind: LessonKind): kind is typeof TRANSACTION_ORDER[number] { return (TRANSACTION_ORDER as readonly string[]).includes(kind); }
 export const CATALOG: Record<LessonKind, LessonDefinition> = {
   signing: { nav: 'Signing', tag: 'P2PKH', title: 'Authorize the spend.', accent: 'One input at a time.', description: 'Match each key to its previous output. Follow the digest into a signature and scriptSig.', steps: [], references: [] },
   propagation: { nav: 'Propagation & mempools', tag: 'RELAY', title: 'One transaction.', accent: 'Many independent nodes.', description: 'Watch your signed transaction spread and compare each node’s local view.', steps: [], references: [] },
-  mining: { nav: 'Mining & confirmations', tag: 'PoW', title: 'From pending', accent: 'to confirmed.', description: 'Explore candidate selection, real header hashing, and simulated confirmation depth.', steps: [], references: [] },
+  mining: { nav: 'Mining', tag: 'PoW', title: 'Build a candidate.', accent: 'Search for proof of work.', description: 'Select transactions, inspect the 80-byte header, and compare each hash with the target.', steps: [], references: [] },
+  blocks: { nav: 'Block propagation & confirmations', tag: 'BLOCKS', title: 'A block arrives.', accent: 'Nodes decide.', description: 'Follow a mined block through independent validation, chain updates, and confirmation depth.', steps: [], references: [] },
   transaction: { nav: 'Transaction anatomy', tag: 'P2PKH', title: 'A transaction,', accent: 'piece by piece.', description: 'Choose the coins. Create the outputs. Discover every byte of an unsigned P2PKH transaction.', steps: [], references: [] },
   p2pkh: { nav: 'Legacy address', tag: 'P2PKH', title: 'An address,', accent: 'byte by byte.', description: 'How does a public key become a Bitcoin address? Follow the transformation. Understand every piece.', steps: LESSON_STEPS, references: [] },
   p2sh: { nav: 'Script hash', tag: 'P2SH', title: 'An address for', accent: 'a spending rule.', description: 'Three keys. One rule. A single address. Discover how a script becomes a commitment.', steps: P2SH_STEPS, multisig: true, references: [13, 16] },
