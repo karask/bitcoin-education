@@ -3,7 +3,7 @@
 A local, browser-native Bitcoin learning lab. Seven address lessons cover legacy,
 script-hash, SegWit, nested SegWit, Taproot, and address comparisons with real
 Python, synchronized pseudocode, and annotated bytes. Both light and dark themes
-are included. A transaction lab builds unsigned P2PKH transactions from editable
+are included. A transaction lab builds and signs P2PKH transactions from editable
 UTXOs and outputs, with a field-by-field hex explorer and runnable Python.
 
 ## Learning path
@@ -19,7 +19,7 @@ Append a lesson fragment to `/bitcoin-education/`:
 | `#nested` | P2WPKH redeem script → outer P2SH address |
 | `#p2tr` | X-only internal key → TapTweak → output key → Bech32m |
 | `#compare` | Six address constructions and locking scripts from one key |
-| `#transaction` | UTXOs → outputs and fee → unsigned P2PKH transaction bytes |
+| `#transaction` | UTXOs → outputs and fee → unsigned bytes → P2PKH signatures |
 
 SegWit inputs use compressed SEC public keys. Taproot starts from a compressed
 SEC key and explains its x-only interpretation; this example has no script
@@ -30,9 +30,20 @@ The transaction lab accepts 1–20 inputs and outputs, integer satoshi amounts,
 and mainnet or testnet P2PKH addresses. Previous locks can also be supplied as
 standard P2PKH script hex. UTXO existence and unspent status are not checked.
 The example outpoint is fictional. Version 2, final sequences, zero locktime,
-and empty scriptSigs keep the first lesson focused on transaction structure.
+and initially empty scriptSigs keep the construction focused on transaction structure.
 Previous amounts and scripts are metadata, not serialized input fields. Fees
 use supplied amounts; unsigned byte size is not a signed fee-rate estimate.
+
+The signing action uses `PrivateKey.sign_input` with `SIGHASH_ALL` for each input.
+Each 32-byte hex key and selected SEC format must match its supplied previous
+locking script. The public example uses scalar 1; use disposable learning keys,
+never funded wallet keys. Keys are kept in memory and appear in the displayed
+and copied Python. Both compressed and uncompressed public keys are supported.
+The result explains each digest, signature, sighash byte, and scriptSig, then
+compares unsigned and signed sizes and transaction IDs. No Script VM, on-chain
+UTXO validation, or broadcasting is provided. The library has no public
+transaction-signature verification API; tests independently construct legacy
+SIGHASH_ALL digests and verify the signatures with ECDSA.
 
 ## Start locally
 

@@ -76,3 +76,13 @@ test('unsigned P2PKH transactions match CPython in WebAssembly', () => {
   invalid.transaction.outputs[0].amount = '100001';
   assert.throws(() => adapter.trace_lesson(JSON.stringify(invalid)), /Outputs exceed inputs/);
 });
+
+test('P2PKH signing matches CPython for both SEC formats, networks, and multiple keys', () => {
+  const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_signing import vectors;print(json.dumps(vectors()))"], { cwd: root, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 }));
+  for (const vector of vectors) {
+    assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);
+  }
+  const invalid = structuredClone(vectors[0].input);
+  invalid.transaction.inputs[0].privateKey = '0'.repeat(63) + '2';
+  assert.throws(() => adapter.trace_lesson(JSON.stringify(invalid)), /do not match/);
+});

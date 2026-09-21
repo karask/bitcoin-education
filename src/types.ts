@@ -4,7 +4,7 @@ export type CodeMode = 'pseudocode' | 'python';
 export type LessonKind = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | 'transaction';
 
 export interface TransactionDraft {
-  inputs: { txid: string; vout: string; amount: string; source: string; sourceType: 'address' | 'script' }[];
+  inputs: { txid: string; vout: string; amount: string; source: string; sourceType: 'address' | 'script'; privateKey?: string; compressed?: boolean }[];
   outputs: { address: string; amount: string }[];
 }
 export interface TransactionResult {
@@ -12,9 +12,14 @@ export interface TransactionResult {
   previousScripts: string[];
   fields: (ByteField & { category: string; python: string })[];
   python: string;
+  signing?: {
+    unsignedHex: string; unsignedTxid: string; txid: string; unsignedBytes: number;
+    inputs: { digest: string; signature: string; publicKey: string; scriptSig: string; python: string }[];
+  };
 }
 
 export interface LessonInput {
+  signTransaction?: boolean;
   transaction?: TransactionDraft;
   kind?: LessonKind;
   publicKeys?: string[];
