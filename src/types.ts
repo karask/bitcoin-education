@@ -1,9 +1,21 @@
 export type Network = 'mainnet' | 'testnet';
 export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
-export type LessonKind = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare';
+export type LessonKind = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | 'transaction';
+
+export interface TransactionDraft {
+  inputs: { txid: string; vout: string; amount: string; source: string; sourceType: 'address' | 'script' }[];
+  outputs: { address: string; amount: string }[];
+}
+export interface TransactionResult {
+  totalInput: number; totalOutput: number; fee: number;
+  previousScripts: string[];
+  fields: (ByteField & { category: string; python: string })[];
+  python: string;
+}
 
 export interface LessonInput {
+  transaction?: TransactionDraft;
   kind?: LessonKind;
   publicKeys?: string[];
   threshold?: number;
@@ -35,6 +47,7 @@ export interface StepResult {
 }
 
 export interface LessonTrace {
+  transaction?: TransactionResult;
   outputScript?: StepResult;
   relatedScripts?: { title: string; result: StepResult }[];
   comparisons?: { type: string; address: string; encoding: string; commitment: string; spending: string; script: string; scriptBytes: number }[];

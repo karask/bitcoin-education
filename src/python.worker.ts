@@ -70,7 +70,7 @@ self.onmessage = (event: MessageEvent<{ type: 'trace'; id: number; input: Lesson
       reply({ type: 'result', id: request.id, trace });
     } catch (error) {
       const raw = error instanceof Error ? error.message : String(error);
-      const message = raw.match(/ValueError: ([^\n]+)/)?.[1] ?? 'The library could not process this public key. Check the input and try again.';
+      const message = raw.match(/ValueError: ([^\n]+)/)?.[1] ?? 'The library could not process these inputs. Check the values and try again.';
       reply({ type: 'error', id: request.id, message });
     }
   });

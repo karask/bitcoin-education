@@ -56,6 +56,7 @@ interface LessonDefinition {
 }
 export const LESSON_ORDER: LessonKind[] = ['p2pkh', 'p2sh', 'p2wpkh', 'p2wsh', 'nested', 'p2tr', 'compare'];
 export const CATALOG: Record<LessonKind, LessonDefinition> = {
+  transaction: { nav: 'Transaction anatomy', tag: 'P2PKH', title: 'A transaction,', accent: 'piece by piece.', description: 'Choose the coins. Create the outputs. Discover every byte of an unsigned P2PKH transaction.', steps: [], references: [] },
   p2pkh: { nav: 'Legacy address', tag: 'P2PKH', title: 'An address,', accent: 'byte by byte.', description: 'How does a public key become a Bitcoin address? Follow the transformation. Understand every piece.', steps: LESSON_STEPS, references: [] },
   p2sh: { nav: 'Script hash', tag: 'P2SH', title: 'An address for', accent: 'a spending rule.', description: 'Three keys. One rule. A single address. Discover how a script becomes a commitment.', steps: P2SH_STEPS, multisig: true, references: [13, 16] },
   p2wpkh: { nav: 'Native SegWit', tag: 'P2WPKH', title: 'A familiar hash.', accent: 'A new address.', description: 'Follow a public key into a witness program, then explore the characters of a Bech32 address.', steps: P2WPKH_STEPS, summary: 'OP_0 <20-byte public-key hash>. The script is 22 bytes; its witness program is the 20-byte hash.', spending: 'Native P2WPKH requires an empty scriptSig. The witness contains a signature and public key. Their hash and signature must satisfy the program; the signature is not stored in the address.', experiments: ['Switch networks: the program and output script stay fixed while the prefix and checksum change.', 'Inspect the five-bit groups: the leading 0 maps to q.', 'Compare the HASH160 with the P2PKH lesson using the same compressed key.'], references: [141, 143, 173] },
@@ -67,5 +68,5 @@ export const CATALOG: Record<LessonKind, LessonDefinition> = {
 
 export function lessonFromHash(hash: string): LessonKind | null {
   const candidate = hash.replace(/^#/, '') || 'p2pkh';
-  return LESSON_ORDER.includes(candidate as LessonKind) ? candidate as LessonKind : null;
+  return candidate === 'transaction' || LESSON_ORDER.includes(candidate as LessonKind) ? candidate as LessonKind : null;
 }

@@ -406,9 +406,128 @@ def trace_comparison(request):
                 steps=steps, pythonPreamble=preamble, comparisons=rows)
 
 
+def trace_transaction(request):
+    """Library serialization with presentation-only offsets and strict form validation."""
+    import re
+    from bitcoinutils.utils import encode_varint
+
+    network = request.get('network')
+    if network not in ('mainnet', 'testnet'):
+        raise ValueError('Choose mainnet or testnet.')
+    setup(network)
+    draft = request.get('transaction', {})
+    inputs, outputs = draft.get('inputs', []), draft.get('outputs', [])
+    if not isinstance(inputs, list) or not isinstance(outputs, list) or not (1 <= len(inputs) <= 20 and 1 <= len(outputs) <= 20):
+        raise ValueError('Use between 1 and 20 inputs and outputs.')
+    maximum = 21_000_000 * 100_000_000
+
+    def integer(value, label, limit, minimum=0):
+        if isinstance(value, bool) or not re.fullmatch(r'[0-9]+', str(value)) or len(str(value)) > 16:
+            raise ValueError(f'{label}: enter a whole decimal number.')
+        number = int(value)
+        if not minimum <= number <= limit:
+            raise ValueError(f'{label}: use a value from {minimum} to {limit}.')
+        return number
+
+    def address_script(address, label):
+        try:
+            script = P2pkhAddress(address=address).to_script_pub_key()
+            if len(script.to_bytes()) != 25:
+                raise ValueError('Invalid P2PKH length')
+            return script
+        except (ValueError, TypeError, IndexError):
+            raise ValueError(f'{label}: enter a valid {network} P2PKH address with a correct checksum.') from None
+
+    preamble = ('from bitcoinutils.setup import setup\nfrom bitcoinutils.keys import P2pkhAddress\n'
+                'from bitcoinutils.script import Script\nfrom bitcoinutils.transactions import Transaction, TxInput, TxOutput\n'
+                f'setup({network!r})')
+    namespace = {}
+    exec(preamble, namespace)
+    snippets, previous_scripts, amounts, out_amounts = [], [], [], []
+    seen = set()
+    for i, row in enumerate(inputs):
+        label = f'Input {i + 1}'
+        txid = str(row.get('txid', '')).strip().lower()
+        if not re.fullmatch(r'[0-9a-f]{64}', txid) or txid == '0' * 64:
+            raise ValueError(f'{label}: enter a nonzero, 64-character transaction ID in display order.')
+        vout = integer(row.get('vout'), f'{label} output index', 0xffffffff)
+        if (txid, vout) in seen:
+            raise ValueError('Each input must reference a distinct UTXO (transaction ID and output index).')
+        seen.add((txid, vout))
+        amount = integer(row.get('amount'), f'{label} amount', maximum, 1)
+        source = str(row.get('source', '')).strip()
+        if row.get('sourceType') == 'script':
+            source = source.lower()
+            if not re.fullmatch(r'76a914[0-9a-f]{40}88ac', source):
+                raise ValueError(f'{label}: use a standard 25-byte P2PKH script: 76a914 + 20-byte hash + 88ac.')
+            script = Script.from_raw(source)
+            source_code = f'Script.from_raw({source!r})'
+        elif row.get('sourceType') == 'address':
+            script = address_script(source, label)
+            source_code = f'P2pkhAddress(address={source!r}).to_script_pub_key()'
+        else:
+            raise ValueError(f'{label}: choose address or locking script.')
+        previous_scripts.append(script.to_hex())
+        amounts.append(amount)
+        snippets.append(f'# UTXO metadata: previous amount and lock are not serialized in this input.\n'
+                        f'previous_amount_{i} = {amount}\nprevious_script_{i} = {source_code}\n'
+                        f'input_{i} = TxInput({txid!r}, {vout}, script_sig=Script([]), sequence=bytes.fromhex("ffffffff"))')
+    for i, row in enumerate(outputs):
+        address = str(row.get('address', '')).strip()
+        address_script(address, f'Output {i + 1}')
+        amount = integer(row.get('amount'), f'Output {i + 1} amount', maximum)
+        out_amounts.append(amount)
+        snippets.append(f'output_{i} = TxOutput({amount}, P2pkhAddress(address={address!r}).to_script_pub_key())')
+    total_in, total_out = sum(amounts), sum(out_amounts)
+    if total_in > maximum or total_out > maximum:
+        raise ValueError('The total value cannot exceed 21 million BTC.')
+    if total_out > total_in:
+        raise ValueError('Outputs exceed inputs. Reduce an output or add another UTXO.')
+    constructor = (f'tx = Transaction(inputs=[{", ".join(f"input_{i}" for i in range(len(inputs)))}], '
+                   f'outputs=[{", ".join(f"output_{i}" for i in range(len(outputs)))}],\n'
+                   '                 version=bytes.fromhex("02000000"), locktime=bytes.fromhex("00000000"), has_segwit=False)\n'
+                   'raw_hex = tx.serialize()')
+    snippets.append(constructor)
+    for snippet in snippets:
+        exec(snippet, namespace)
+    raw = bytes.fromhex(namespace['raw_hex'])
+    fields, offset = [], 0
+
+    def field(label, size, category, description, python):
+        nonlocal offset
+        fields.append(dict(id=f'tx-{len(fields)}', label=label, start=offset, end=offset + size,
+                           category=category, description=description, python=python))
+        offset += size
+
+    field('Version', 4, 'header', 'Version 2, stored as a four-byte little-endian integer. This is a legacy serialization without witness.', constructor)
+    field('Input count', len(encode_varint(len(inputs))), 'count', f'{len(inputs)} inputs, encoded as CompactSize. This is a count, not a byte length.', constructor)
+    for i, row in enumerate(inputs):
+        prefix, code = f'Input {i + 1} · ', snippets[i]
+        field(prefix + 'previous TXID', 32, 'outpoint', 'The previous transaction ID in internal byte order: the reverse of the byte pairs entered in display order.', code)
+        field(prefix + 'output index', 4, 'index', f'Output {int(row["vout"])} of that previous transaction, numbered from zero. Four bytes, little-endian.', code)
+        field(prefix + 'scriptSig length', 1, 'count', '00 means zero script bytes follow. It is a length prefix, not an OP_0 inside scriptSig.', code)
+        field(prefix + 'empty scriptSig', 0, 'script', 'No bytes yet. Signing a P2PKH input adds a signature and public key here. The previous locking script does not belong here.', code)
+        field(prefix + 'sequence', 4, 'sequence', 'ffffffff is the final sequence value. With locktime zero, this example has no transaction locktime delay.', code)
+    field('Output count', len(encode_varint(len(outputs))), 'count', f'{len(outputs)} outputs, encoded as CompactSize.', constructor)
+    for i, amount in enumerate(out_amounts):
+        code = snippets[len(inputs) + i]
+        field(f'Output {i + 1} · amount', 8, 'amount', f'{amount:,} satoshis, encoded as an eight-byte little-endian integer. Addresses and BTC decimal strings are not serialized.', code)
+        field(f'Output {i + 1} · script length', 1, 'count', '19 hexadecimal is 25 decimal: the length of the P2PKH locking script in bytes.', code)
+        field(f'Output {i + 1} · locking script', 25, 'script', 'OP_DUP OP_HASH160 <20-byte public-key hash> OP_EQUALVERIFY OP_CHECKSIG. This is the new output’s spending condition.', code)
+    field('Locktime', 4, 'header', 'Zero: no absolute locktime constraint. Four bytes, little-endian.', constructor)
+    assert offset == len(raw), 'Transaction annotations must cover the library serialization exactly.'
+    python = preamble + '\n\n' + '\n\n'.join(snippets) + '\nprint(raw_hex)'
+    step = dict(id='transaction', hex=raw.hex(), byteLength=len(raw), fields=fields, python=constructor)
+    return dict(network=network, compressed=True, publicKey='', address='', steps=[step], pythonPreamble=preamble,
+                transaction=dict(totalInput=total_in, totalOutput=total_out, fee=total_in - total_out,
+                                 previousScripts=previous_scripts, fields=fields, python=python))
+
+
 def trace_lesson(request_json):
     request = json.loads(request_json)
     kind = request.get('kind', 'p2pkh')
+    if kind == 'transaction':
+        return json.dumps(trace_transaction(request))
     if kind == 'p2pkh':
         return trace_p2pkh(request_json)
     if kind == 'p2sh':

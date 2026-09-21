@@ -1,9 +1,10 @@
 # Bit by Bit
 
-A local, browser-native Bitcoin learning lab. Seven lessons cover legacy,
+A local, browser-native Bitcoin learning lab. Seven address lessons cover legacy,
 script-hash, SegWit, nested SegWit, Taproot, and address comparisons with real
 Python, synchronized pseudocode, and annotated bytes. Both light and dark themes
-are included.
+are included. A transaction lab builds unsigned P2PKH transactions from editable
+UTXOs and outputs, with a field-by-field hex explorer and runnable Python.
 
 ## Learning path
 
@@ -18,11 +19,20 @@ Append a lesson fragment to `/bitcoin-education/`:
 | `#nested` | P2WPKH redeem script → outer P2SH address |
 | `#p2tr` | X-only internal key → TapTweak → output key → Bech32m |
 | `#compare` | Six address constructions and locking scripts from one key |
+| `#transaction` | UTXOs → outputs and fee → unsigned P2PKH transaction bytes |
 
 SegWit inputs use compressed SEC public keys. Taproot starts from a compressed
 SEC key and explains its x-only interpretation; this example has no script
 tree. The comparison lab uses `<key> OP_CHECKSIG` for P2SH and P2WSH, making
 their common one-key input explicit rather than silently adding multisig keys.
+
+The transaction lab accepts 1–20 inputs and outputs, integer satoshi amounts,
+and mainnet or testnet P2PKH addresses. Previous locks can also be supplied as
+standard P2PKH script hex. UTXO existence and unspent status are not checked.
+The example outpoint is fictional. Version 2, final sequences, zero locktime,
+and empty scriptSigs keep the first lesson focused on transaction structure.
+Previous amounts and scripts are metadata, not serialized input fields. Fees
+use supplied amounts; unsigned byte size is not a signed fee-rate estimate.
 
 ## Start locally
 
