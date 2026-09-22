@@ -9,8 +9,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = ROOT / '.test-artifacts' / 'python-packages'
 PACKAGES.mkdir(parents=True, exist_ok=True)
-for wheel in (ROOT / 'public/runtime/wheels').glob('*.whl'):
-    with zipfile.ZipFile(wheel) as archive:
+for wheel in json.loads((ROOT / 'public/runtime/manifest.json').read_text())['wheels']:
+    with zipfile.ZipFile(ROOT / 'public/runtime' / wheel['path']) as archive:
         archive.extractall(PACKAGES)
 sys.path.insert(0, str(PACKAGES))
 spec = importlib.util.spec_from_file_location('lesson_adapter', ROOT / 'public/python/lesson_adapter.py')

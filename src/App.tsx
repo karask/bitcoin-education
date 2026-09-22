@@ -285,10 +285,10 @@ export default function App() {
         </section>}
         {definition.references.length > 0 && <div className="lesson-sources">Read the specifications: {definition.references.map((bip) => <a key={bip} href={'https://github.com/bitcoin/bips/blob/master/bip-' + String(bip).padStart(4, '0') + '.mediawiki'} target="_blank" rel="noreferrer">BIP {bip}</a>)}</div>}
         </>}
-        <footer className="lesson-footer"><span><span className="small-dot" />Real calculations. No magic. Just Bitcoin.</span><a href="https://github.com/karask/python-bitcoin-utils" target="_blank" rel="noreferrer">python-bitcoin-utils <span>0.8.5</span><ArrowUpRight size={12} /></a></footer>
+        <footer className="lesson-footer"><span><span className="small-dot" />Real calculations. No magic. Just Bitcoin.</span><a href="https://github.com/karask/python-bitcoin-utils" target="_blank" rel="noreferrer">python-bitcoin-utils <span>0.8.6</span><ArrowUpRight size={12} /></a></footer>
       </main>
     </div>
-    {runtime.activity && runtime.status.state === 'ready' && <div className="calculation-toast" role="status" aria-live="polite" aria-label="Python calculation in progress"><LoaderCircle size={19} aria-hidden="true" /><div><strong>Python is calculating…</strong><span>{kind === 'mining' ? 'Hashing the sample block header' : kind === 'signing' || kind === 'propagation' || kind === 'blocks' ? 'Building and signing the transaction' : kind === 'transaction' ? 'Building the transaction bytes' : 'Updating the lesson with your inputs'}</span></div></div>}
+    {runtime.activity && runtime.status.state === 'ready' && <div className="calculation-toast" role="status" aria-live="polite" aria-label="Python calculation in progress"><LoaderCircle size={19} aria-hidden="true" /><div><strong>Python is calculating…</strong><span>{kind === 'execution' ? 'Executing the input scripts' : kind === 'mining' ? 'Hashing the sample block header' : kind === 'signing' || kind === 'propagation' || kind === 'blocks' ? 'Building and signing the transaction' : kind === 'transaction' ? 'Building the transaction bytes' : 'Updating the lesson with your inputs'}</span></div></div>}
     {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
   </div>;
 }

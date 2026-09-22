@@ -1,0 +1,18 @@
+.execution-lesson { padding: 26px; margin: 24px 0; }
+.execution-lesson p { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.execution-instructions { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0; }
+.execution-instructions button { padding: 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--inset); font: 10px 'JetBrains Mono', monospace; }
+.execution-instructions small { display: block; color: var(--muted); margin-bottom: 7px; }
+.execution-instructions .selected { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.execution-current h2 { font-size: 20px; font-weight: 500; line-height: 1.5; }
+.execution-stacks { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.execution-stack { padding: 20px; background: var(--inset); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.execution-stack h3 { font-size: 15px; font-weight: 500; }
+.execution-stack > div { min-height: 210px; display: flex; flex-direction: column; gap: 9px; padding: 16px 0; }
+.execution-stack code { display: block; padding: 13px; background: var(--surface); border: 1px solid var(--accent-line); border-radius: 6px; color: var(--accent); overflow-wrap: anywhere; font-size: 11px; }
+.execution-stack small { color: var(--muted); font-size: 10px; }
+.execution-digest { margin: 22px 0; }
+.execution-digest code { overflow-wrap: anywhere; font-size: 12px; }
+.execution-verdict { margin: 20px 0; border-left: 3px solid var(--accent); padding: 16px; background: var(--accent-soft); }
+.execution-verdict.passed { border-color: var(--green); background: var(--green-soft); }
+@media(max-width:700px) { .execution-stacks { grid-template-columns: 1fr; } .execution-lesson { padding: 16px; } }

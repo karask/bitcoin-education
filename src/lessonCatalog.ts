@@ -55,9 +55,10 @@ interface LessonDefinition {
   summary?: string; spending?: string; experiments?: string[]; references: number[];
 }
 export const LESSON_ORDER: LessonKind[] = ['p2pkh', 'p2sh', 'p2wpkh', 'p2wsh', 'nested', 'p2tr', 'compare'];
-export const TRANSACTION_ORDER = ['transaction', 'signing', 'propagation', 'mining', 'blocks'] as const;
+export const TRANSACTION_ORDER = ['transaction', 'signing', 'execution', 'propagation', 'mining', 'blocks'] as const;
 export function isTransactionPage(kind: LessonKind): kind is typeof TRANSACTION_ORDER[number] { return (TRANSACTION_ORDER as readonly string[]).includes(kind); }
 export const CATALOG: Record<LessonKind, LessonDefinition> = {
+  execution: { nav: 'Script execution', tag: 'STACK', title: 'Follow the stack.', accent: 'Verify the spend.', description: 'Execute a signed P2PKH input. Watch each instruction prove—or reject—the authorization.', steps: [], references: [] },
   signing: { nav: 'Signing', tag: 'P2PKH', title: 'Authorize the spend.', accent: 'One input at a time.', description: 'Match each key to its previous output. Follow the digest into a signature and scriptSig.', steps: [], references: [] },
   propagation: { nav: 'Propagation & mempools', tag: 'RELAY', title: 'One transaction.', accent: 'Many independent nodes.', description: 'Watch your signed transaction spread and compare each node’s local view.', steps: [], references: [] },
   mining: { nav: 'Mining', tag: 'PoW', title: 'Build a candidate.', accent: 'Search for proof of work.', description: 'Select transactions, inspect the 80-byte header, and compare each hash with the target.', steps: [], references: [] },

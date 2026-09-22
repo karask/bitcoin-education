@@ -608,8 +608,34 @@ def trace_mining(request):
                             python=code, attempts=attempts, nextNonce=attempts[-1]['nonce'] + 1, found=attempts[-1]['success']))
 
 
+def trace_execution(request):
+    options = request['execution']
+    index = options['inputIndex']
+    if type(index) is not int or index < 0:
+        raise ValueError('Choose a valid input index.')
+    experiment = options.get('experiment', 'original')
+    edits = {
+        'original': '',
+        'key': "replacement = PrivateKey(secret_exponent=2).get_public_key().to_hex()\nif tx.inputs[index].script_sig.script[1] == replacement:\n    replacement = PrivateKey(secret_exponent=3).get_public_key().to_hex()\ntx.inputs[index].script_sig.script[1] = replacement",
+        'signature': "signature = tx.inputs[index].script_sig.script[0]\ntx.inputs[index].script_sig.script[0] = signature[:-4] + ('00' if signature[-4:-2] != '00' else '01') + signature[-2:]",
+        'output': 'tx.outputs[0].amount += 1',
+    }
+    if experiment not in edits:
+        raise ValueError('Choose an available experiment.')
+    code = ("from bitcoinutils.transactions import Transaction\nfrom bitcoinutils.script import Script\nfrom bitcoinutils.keys import PrivateKey\nfrom bitcoinutils.learning import trace_p2pkh_input\n\n"
+            f"tx = Transaction.from_raw({options['hex']!r})\nindex = {index}\nprevious_script = Script.from_raw({options['previousScript']!r})\n"
+            + edits[experiment] + "\nresult = trace_p2pkh_input(tx, index, previous_script)")
+    namespace = {}
+    exec(code, namespace)
+    result = namespace['result']
+    result['python'] = code
+    return dict(network='mainnet', compressed=True, publicKey='', address='', steps=[], pythonPreamble='', execution=result)
+
+
 def trace_lesson(request_json):
     request = json.loads(request_json)
+    if request.get('kind') == 'execution':
+        return json.dumps(trace_execution(request))
     kind = request.get('kind', 'p2pkh')
     if kind == 'mining':
         return json.dumps(trace_mining(request))

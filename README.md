@@ -21,6 +21,7 @@ Append a lesson fragment to `/bitcoin-education/`:
 | `#compare` | Six address constructions and locking scripts from one key |
 | `#transaction` | Transaction anatomy: UTXOs, outputs, fees, unsigned bytes |
 | `#signing` | P2PKH digests, signatures, scriptSigs, signed bytes |
+| `#execution` | P2PKH instruction walkthrough, stack transitions, failure experiments |
 | `#propagation` | Node relay and separate local mempools |
 | `#mining` | Candidate selection, sample header hashing, simulated confirmations |
 
@@ -43,14 +44,20 @@ locking script. The public example uses scalar 1; use disposable learning keys,
 never funded wallet keys. Keys are kept in memory and appear in the displayed
 and copied Python. Both compressed and uncompressed public keys are supported.
 The result explains each digest, signature, sighash byte, and scriptSig, then
-compares unsigned and signed sizes and transaction IDs. No Script VM, on-chain
-UTXO validation, or broadcasting is provided. The library has no public
-transaction-signature verification API; tests independently construct legacy
-SIGHASH_ALL digests and verify the signatures with ECDSA.
+compares unsigned and signed sizes and transaction IDs. Tests independently
+construct legacy SIGHASH_ALL digests and verify the signatures with ECDSA.
 
-Four separate transaction menu items share the in-memory draft and signed
+Script execution uses `bitcoinutils.learning.trace_p2pkh_input` from version
+0.8.6 inside the browser worker. Select an input and step through or play its
+scriptSig and scriptPubKey, with before/after stacks and the CHECKSIG digest.
+Experiments change a public key, signature byte, or output on a separate copy.
+The evaluator supports standard legacy P2PKH with SIGHASH_ALL; it does not
+provide full node validation, on-chain UTXO checks, or broadcasting.
+
+Six separate transaction menu items share the in-memory draft and signed
 transaction, including when navigating to address lessons and back. Next-step
-links connect Anatomy → Signing → Propagation → Mining. Directly opening a later
+links connect Anatomy → Signing → Script execution → Propagation → Mining → Block propagation.
+Directly opening a later
 stage offers a signed public example; reload starts a fresh session.
 
 In Propagation, play or step through modeled announcements,
@@ -153,7 +160,7 @@ The interface includes links to the relevant BIPs for each lesson.
 | Component | Version |
 | --- | --- |
 | Pyodide | 314.0.7 |
-| bitcoin-utils | 0.8.5 |
+| bitcoin-utils | 0.8.6 |
 | base58check | 1.0.2 |
 | ecdsa | 0.19.2 |
 | SymPy | 1.14.0 |
