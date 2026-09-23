@@ -3,7 +3,7 @@ import type { NodeId } from './networkSimulation';
 
 export type BlockNodeStatus = 'unseen' | 'announced' | 'reconstructing' | 'checking' | 'accepted';
 export type BlockMessageKind = 'cmpctblock' | 'getblocktxn' | 'blocktxn' | 'validate';
-export interface BlockMessage { from: NodeId; to: NodeId; kind: BlockMessageKind }
+export interface BlockMessage { from: NodeId; to: NodeId; kind: BlockMessageKind; receivedFrom?: NodeId }
 export interface BlockSimulation {
   nodes: Record<NodeId, BlockNodeStatus>;
   queue: BlockMessage[];
@@ -43,7 +43,7 @@ function advanceMessage(state: BlockSimulation, message: BlockMessage, wave: num
     } else {
       next.nodes[message.to] = 'checking';
       text = `Node ${message.from} sends cmpctblock to ${message.to}. Its mempool supplies the referenced transactions; independent validation starts.`;
-      next.queue.push({ from: message.to, to: message.to, kind: 'validate' });
+      next.queue.push({ from: message.to, to: message.to, kind: 'validate', receivedFrom: message.from });
     }
   } else if (message.kind === 'getblocktxn') {
     text = `Node ${message.from} sends getblocktxn to ${message.to} for the transactions it could not reconstruct.`;
@@ -51,11 +51,11 @@ function advanceMessage(state: BlockSimulation, message: BlockMessage, wave: num
   } else if (message.kind === 'blocktxn') {
     next.nodes[message.to] = 'checking';
     text = `Node ${message.from} replies with blocktxn. Node ${message.to} can now reconstruct the block and validate it.`;
-    next.queue.push({ from: message.to, to: message.to, kind: 'validate' });
+    next.queue.push({ from: message.to, to: message.to, kind: 'validate', receivedFrom: message.from });
   } else {
     next.nodes[message.to] = 'accepted';
     text = `Node ${message.to} accepts the block, updates its chain and UTXO set, then relays a compact announcement to its other peers.`;
-    next.queue.push(...relayFrom(message.to, message.from));
+    next.queue.push(...relayFrom(message.to, message.receivedFrom ?? message.from));
   }
   next.logs.push({ message, text, wave });
   return next;
