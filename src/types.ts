@@ -1,10 +1,21 @@
 export type Network = 'mainnet' | 'testnet';
 export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
-export type TransactionPage = 'transaction' | 'signing' | 'execution' | 'propagation' | 'mining' | 'blocks';
+export type TransactionPage = 'transaction' | 'signing' | 'execution' | 'propagation' | 'construction' | 'mining' | 'blocks';
 export type LessonKind = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
+export interface CandidateResult {
+  height: number; budget: number; used: number; subsidy: number; fees: number; reward: number;
+  entries: { id: string; label: string; fee: number; vsize: number; rate: number; txid: string; selected: boolean }[];
+  selected: string[];
+  coinbase: { txid: string; hex: string; scriptSig: string; payoutScript: string };
+  merkle: { txids: string[]; levels: string[][]; levels_internal: string[][];
+    pairs: { level: number; index: number; left: string; right: string; left_internal: string; right_internal: string; preimage: string; parent: string; parent_internal: string; duplicated: boolean }[];
+    root: string; root_internal: string; mutated: boolean };
+  python: string;
+}
+
 export interface MiningResult {
-  target: string; bits: string; header: string; python: string;
+  target: string; bits: string; header: string; merkleRoot: string; python: string;
   attempts: { nonce: number; hash: string; success: boolean }[];
   nextNonce: number; found: boolean;
 }
@@ -26,7 +37,8 @@ export interface TransactionResult {
 
 export interface LessonInput {
   execution?: { hex: string; previousScript: string; inputIndex: number; experiment: string };
-  mining?: { startNonce: number; difficulty: 'easy' | 'harder'; count: number };
+  mining?: { startNonce: number; difficulty: 'easy' | 'harder'; count: number; merkleRoot: string };
+  candidate?: { hex: string; fee: number; budget: number; height: number; include: boolean; network: Network };
   signTransaction?: boolean;
   transaction?: TransactionDraft;
   kind?: LessonKind;
@@ -62,6 +74,7 @@ export interface StepResult {
 export interface LessonTrace {
   execution?: { success: boolean; final_stack: string[]; error: {code: string; message: string} | null; python: string; steps: {phase: string; instruction: string; stack_before: string[]; stack_after: string[]; error: string | null; digest?: string; signature_valid?: boolean}[] };
   mining?: MiningResult;
+  candidate?: CandidateResult;
   transaction?: TransactionResult;
   outputScript?: StepResult;
   relatedScripts?: { title: string; result: StepResult }[];

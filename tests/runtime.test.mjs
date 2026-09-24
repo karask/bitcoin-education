@@ -92,6 +92,19 @@ test('header hashing in WebAssembly matches independently checked CPython traces
   for (const vector of vectors) assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);
 });
 
+
+test('candidate construction in WebAssembly matches CPython and feeds the mining header', () => {
+  const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_construction import signed_fixture;from test_p2pkh import adapter;raw,fee,_=signed_fixture();requests=[dict(kind='construction',candidate=dict(hex=raw,fee=fee,height=h,budget=b,include=i,network='mainnet')) for h,b,i in [(840000,1000,True),(840000,600,True),(839999,300,False)]];print(json.dumps([dict(input=r,trace=json.loads(adapter.trace_lesson(json.dumps(r)))) for r in requests]))"], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
+  for (const vector of vectors) {
+    const result = JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input)));
+    assert.deepEqual(result, vector.trace);
+    const mining = JSON.parse(adapter.trace_lesson(JSON.stringify({ kind: 'mining', mining: {
+      startNonce: 0, count: 1, difficulty: 'easy', merkleRoot: result.candidate.merkle.root,
+    } }))).mining;
+    assert.equal(mining.header.slice(72, 136), result.candidate.merkle.root_internal);
+  }
+});
+
 test('P2PKH execution and failure experiments match CPython in WebAssembly', () => {
   const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_execution import wasm_vectors;print(json.dumps(wasm_vectors()))"], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
   for (const vector of vectors) assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);

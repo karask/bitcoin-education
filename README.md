@@ -23,7 +23,9 @@ Append a lesson fragment to `/bitcoin-education/`:
 | `#signing` | P2PKH digests, signatures, scriptSigs, signed bytes |
 | `#execution` | P2PKH instruction walkthrough, stack transitions, failure experiments |
 | `#propagation` | Node relay and separate local mempools |
-| `#mining` | Candidate selection, sample header hashing, simulated confirmations |
+| `#construction` | Candidate selection, BIP34 coinbase, Merkle tree |
+| `#mining` | Candidate-root header hashing and nonce attempts |
+| `#blocks` | Compact block relay and modeled confirmations |
 
 SegWit inputs use compressed SEC public keys. Taproot starts from a compressed
 SEC key and explains its x-only interpretation; this example has no script
@@ -48,15 +50,15 @@ compares unsigned and signed sizes and transaction IDs. Tests independently
 construct legacy SIGHASH_ALL digests and verify the signatures with ECDSA.
 
 Script execution uses `bitcoinutils.learning.trace_p2pkh_input` from version
-0.8.6 inside the browser worker. Select an input and step through or play its
+0.8.7 inside the browser worker. Select an input and step through or play its
 scriptSig and scriptPubKey, with before/after stacks and the CHECKSIG digest.
 Experiments change a public key, signature byte, or output on a separate copy.
 The evaluator supports standard legacy P2PKH with SIGHASH_ALL; it does not
 provide full node validation, on-chain UTXO checks, or broadcasting.
 
-Six separate transaction menu items share the in-memory draft and signed
+Seven separate transaction menu items share the in-memory draft and signed
 transaction, including when navigating to address lessons and back. Next-step
-links connect Anatomy → Signing → Script execution → Propagation → Mining → Block propagation.
+links connect Anatomy → Signing → Script execution → Propagation → Block construction → Mining → Block propagation.
 Directly opening a later
 stage offers a signed public example; reload starts a fresh session.
 
@@ -66,11 +68,16 @@ mempool; change C's illustrative fee threshold, remove a referenced output at
 C, or disconnect E. Added fee competition affects only the selected snapshot.
 The scene uses the actual signed TXID and bytes, assumed starting UTXOs, and
 explicitly modeled validation. No real network broadcast takes place, and the
-transaction stays unconfirmed there. Mining adds selection among independent
-entries, real `BlockHeader` hashing with an easy demonstration target, and
-separately simulated per-node block acceptance and confirmation depth. The hash
-exercise uses a supplied root, not a calculated commitment to the candidate.
-See [LIBRARY_GAPS.md](LIBRARY_GAPS.md) for the remaining validation and mining APIs.
+transaction stays unconfirmed there. Block construction uses `bitcoin-utils`
+0.8.7 to select from real serialized legacy transactions, build a BIP34
+coinbase with subsidy and assumed fees, and trace every transaction Merkle pair.
+Changing height or selection changes the coinbase TXID and committed root.
+Mining hashes an 80-byte header containing that root with a deliberately easy
+target. The previous hash and timestamp are illustrative, so the result is not
+a valid block on the selected chain. Block relay and confirmations remain a
+separate simulation that assumes a valid block was found. Full block
+serialization and contextual validation are not implemented.
+See [LIBRARY_GAPS.md](LIBRARY_GAPS.md) for remaining validation APIs.
 
 ## Start locally
 
@@ -160,7 +167,7 @@ The interface includes links to the relevant BIPs for each lesson.
 | Component | Version |
 | --- | --- |
 | Pyodide | 314.0.7 |
-| bitcoin-utils | 0.8.6 |
+| bitcoin-utils | 0.8.7 |
 | base58check | 1.0.2 |
 | ecdsa | 0.19.2 |
 | SymPy | 1.14.0 |
@@ -176,7 +183,7 @@ the assets, update the displayed version, and run both test suites.
 
 ## Future lessons
 
-Mining, live nodes, wallets, and an editable Python console are outside this
+Live nodes, wallets, and an editable Python console are outside this
 first milestone. Missing Bitcoin capabilities should be added to
 `python-bitcoin-utils`, not reimplemented in the website.
 

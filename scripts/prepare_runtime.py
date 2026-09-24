@@ -8,7 +8,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 DEST = ROOT / 'public' / 'runtime'
 PACKAGES = {
-    'bitcoin-utils': '0.8.6',
+    'bitcoin-utils': '0.8.7',
     'base58check': '1.0.2',
     'ecdsa': '0.19.2',
     'sympy': '1.14.0',

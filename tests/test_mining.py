@@ -6,12 +6,15 @@ from test_p2pkh import adapter
 from bitcoinutils.block import BlockHeader
 
 
-def trace(start=0, count=64, difficulty='easy'):
-    return json.loads(adapter.trace_lesson(json.dumps(dict(kind='mining', mining=dict(startNonce=start, count=count, difficulty=difficulty)))))
+ROOT = '11' * 32
+
+
+def trace(start=0, count=64, difficulty='easy', root=ROOT):
+    return json.loads(adapter.trace_lesson(json.dumps(dict(kind='mining', mining=dict(startNonce=start, count=count, difficulty=difficulty, merkleRoot=root)))))
 
 
 def vectors():
-    return [dict(input=dict(kind='mining', mining=dict(startNonce=s, count=c, difficulty=d)), trace=trace(s, c, d))
+    return [dict(input=dict(kind='mining', mining=dict(startNonce=s, count=c, difficulty=d, merkleRoot=ROOT)), trace=trace(s, c, d))
             for s, c, d in [(0, 1, 'easy'), (0, 64, 'easy'), (0, 64, 'harder'), (64, 256, 'harder')]]
 
 
@@ -52,3 +55,5 @@ class MiningTests(unittest.TestCase):
         for args in [(-1, 1, 'easy'), (0, 0, 'easy'), (0, 257, 'easy'), (4294967295, 2, 'easy'), (True, 1, 'easy'), (0, 1, 'unknown')]:
             with self.subTest(args=args), self.assertRaises(ValueError):
                 trace(*args)
+        with self.assertRaises(ValueError):
+            trace(root='')

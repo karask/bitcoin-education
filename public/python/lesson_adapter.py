@@ -578,20 +578,99 @@ def trace_transaction(request):
                                  previousScripts=previous_scripts, fields=fields, python=python, **({'signing': signing} if signing else {})))
 
 
+def trace_candidate(request):
+    """Build an illustrative legacy candidate from real library transactions."""
+    options = request.get('candidate', {})
+    signed_hex = options.get('hex', '')
+    height = options.get('height', 840000)
+    budget = options.get('budget', 1000)
+    include = options.get('include', True)
+    fee = options.get('fee', 0)
+    network = options.get('network', 'mainnet')
+    if not isinstance(signed_hex, str) or not signed_hex or len(signed_hex) % 2:
+        raise ValueError('Supply a signed legacy transaction in hexadecimal.')
+    if type(height) is not int or height not in (839999, 840000, 840001, 1050000):
+        raise ValueError('Choose an available example block height.')
+    if type(budget) is not int or budget not in (300, 600, 1000):
+        raise ValueError('Choose an available transaction-space budget.')
+    if type(include) is not bool or type(fee) is not int or fee < 0:
+        raise ValueError('Choose valid candidate options and a non-negative transaction fee.')
+    if network not in ('mainnet', 'testnet'):
+        raise ValueError('Choose Mainnet or Testnet.')
+    try:
+        bytes.fromhex(signed_hex)
+    except ValueError:
+        raise ValueError('Supply a signed transaction in hexadecimal.') from None
+    code = ("from bitcoinutils.setup import setup\n"
+            "from bitcoinutils.keys import PublicKey\n"
+            "from bitcoinutils.script import Script\n"
+            "from bitcoinutils.transactions import Transaction, TxInput, TxOutput\n"
+            "from bitcoinutils.learning import create_coinbase_transaction, get_block_subsidy, trace_merkle_root\n\n"
+            f"network = {network!r}\nheight = {height}\nbudget = {budget}\ninclude = {include}\n"
+            f"your_fee = {fee}\nyour_tx = Transaction.from_raw({signed_hex!r})\n"
+            "setup(network)\n"
+            "payout_script = PublicKey(hex_str='02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5').get_address().to_script_pub_key()\n"
+            "alpha = Transaction([TxInput('aa' * 32, 0, Script(['aa' * 120]))], [TxOutput(1000, payout_script)])\n"
+            "gamma = Transaction([TxInput('bb' * 32, 0, Script(['bb' * 180]))], [TxOutput(1000, payout_script)])\n"
+            "entries = [\n"
+            "    dict(id='gamma', label='Illustrative entry γ', tx=gamma, fee=2880),\n"
+            "    dict(id='alpha', label='Illustrative entry α', tx=alpha, fee=360),\n"
+            "    dict(id='yours', label='Your signed transaction', tx=your_tx, fee=your_fee),\n"
+            "]\n"
+            "entries = [entry for entry in entries if entry['id'] != 'yours' or include]\n"
+            "for entry in entries:\n"
+            "    entry['vsize'] = entry['tx'].get_size()  # Legacy bytes equal virtual bytes here.\n"
+            "    entry['rate'] = entry['fee'] / entry['vsize']\n"
+            "entries.sort(key=lambda entry: (-entry['rate'], entry['id']))\n"
+            "selected = []\nused = 0\n"
+            "for entry in entries:\n"
+            "    if used + entry['vsize'] <= budget:\n"
+            "        selected.append(entry)\n"
+            "        used += entry['vsize']\n"
+            "fees = sum(entry['fee'] for entry in selected)\n"
+            "subsidy = get_block_subsidy(height, network)\n"
+            "coinbase = create_coinbase_transaction(height, [TxOutput(subsidy + fees, payout_script)], fees=fees, network=network, extra_nonce=b'\\x01')\n"
+            "ordered_transactions = [coinbase] + [entry['tx'] for entry in selected]\n"
+            "merkle = trace_merkle_root(ordered_transactions)\n")
+    namespace = {}
+    exec(code, namespace)
+    entries = namespace['entries']
+    selected = namespace['selected']
+    coinbase = namespace['coinbase']
+    return dict(network=network, compressed=True, publicKey='', address='', steps=[], pythonPreamble='',
+                candidate=dict(height=height, budget=budget, used=namespace['used'], subsidy=namespace['subsidy'],
+                               fees=namespace['fees'], reward=namespace['subsidy'] + namespace['fees'],
+                               entries=[dict(id=entry['id'], label=entry['label'], fee=entry['fee'], vsize=entry['vsize'],
+                                             rate=entry['rate'], txid=entry['tx'].get_txid(),
+                                             selected=entry in selected) for entry in entries],
+                               selected=[entry['id'] for entry in selected],
+                               coinbase=dict(txid=coinbase.get_txid(), hex=coinbase.to_hex(),
+                                             scriptSig=coinbase.inputs[0].script_sig.script[0],
+                                             payoutScript=namespace['payout_script'].to_hex()),
+                               merkle=namespace['merkle'], python=code))
+
+
 def trace_mining(request):
-    """Real library header hashing with an explicitly supplied, non-transaction root."""
+    """Hash a header that commits to the candidate's real transaction Merkle root."""
     options = request.get('mining', {})
     start, count = options.get('startNonce', 0), options.get('count', 64)
     difficulty = options.get('difficulty', 'easy')
+    root = options.get('merkleRoot', '')
     if type(start) is not int or type(count) is not int or not 1 <= count <= 256 or not 0 <= start <= 0xffffffff or start + count > 0x100000000:
         raise ValueError('Choose a valid uint32 nonce range and 1–256 attempts.')
     if difficulty not in ('easy', 'harder'):
         raise ValueError('Choose an available demonstration target.')
+    if not isinstance(root, str) or len(root) != 64:
+        raise ValueError('Build a candidate to supply a 32-byte Merkle root.')
+    try:
+        bytes.fromhex(root)
+    except ValueError:
+        raise ValueError('Build a candidate to supply a hexadecimal Merkle root.') from None
     bits = 0x200fffff if difficulty == 'easy' else 0x1f7fffff
     code = ("from bitcoinutils.block import BlockHeader\n\n"
-            "# Supplied fixture root: NOT computed from the learner's transaction.\n"
+            "# Display-order root calculated by trace_merkle_root in Block construction.\n"
             "header = BlockHeader(version=2, previous_block_hash=bytes(32),\n"
-            "                     merkle_root=bytes.fromhex('11' * 32),\n"
+            f"                     merkle_root=bytes.fromhex({root!r}),\n"
             f"                     timestamp=1700000000, target_bits={bits}, nonce={start})\n"
             "target = header.get_target_hex()\nattempts = []\n"
             f"for nonce in range({start}, {start + count}):\n"
@@ -605,7 +684,8 @@ def trace_mining(request):
     attempts = namespace['attempts']
     return dict(network='mainnet', compressed=True, publicKey='', address='', steps=[], pythonPreamble='',
                 mining=dict(target=namespace['target'], bits=f'{bits:08x}', header=namespace['header_hex'],
-                            python=code, attempts=attempts, nextNonce=attempts[-1]['nonce'] + 1, found=attempts[-1]['success']))
+                            merkleRoot=root, python=code, attempts=attempts,
+                            nextNonce=attempts[-1]['nonce'] + 1, found=attempts[-1]['success']))
 
 
 def trace_execution(request):
@@ -637,6 +717,8 @@ def trace_lesson(request_json):
     if request.get('kind') == 'execution':
         return json.dumps(trace_execution(request))
     kind = request.get('kind', 'p2pkh')
+    if kind == 'construction':
+        return json.dumps(trace_candidate(request))
     if kind == 'mining':
         return json.dumps(trace_mining(request))
     if kind == 'transaction':

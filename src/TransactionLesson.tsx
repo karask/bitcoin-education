@@ -5,7 +5,7 @@ import { CATALOG, TRANSACTION_ORDER } from './lessonCatalog';
 import type { usePython } from './usePython';
 import './transaction.css';
 import { TransactionJourney } from './TransactionJourney';
-import { MiningLesson } from './MiningLesson';
+import { BlockConstructionLesson } from './BlockConstructionLesson';
 import { ScriptExecution } from './ScriptExecution';
 
 const addresses = {
@@ -115,7 +115,7 @@ export function TransactionLesson({ runtime, page, visible }: { runtime: ReturnT
     </section>}
     {page !== 'transaction' && runtime.error && <p className="input-error" role="alert">{runtime.error}</p>}
     {page === 'signing' && dirty && <p className="draft-notice">Inputs changed. Sign again to create a new result.</p>}
-    {(['execution', 'propagation', 'mining', 'blocks'].includes(page)) && !signedTrace && <section className="panel tx-stage-empty"><h2>Start with a signed transaction</h2><p>Continue from Signing, or load the public example to explore this lesson independently.</p><a className="secondary-button" href="#signing">Go to signing</a><button className="primary-button" disabled={runtime.busy || runtime.status.state !== 'ready'} onClick={() => restore(true)}>Use signed example</button></section>}
+    {(['execution', 'propagation', 'construction', 'mining', 'blocks'].includes(page)) && !signedTrace && <section className="panel tx-stage-empty"><h2>Start with a signed transaction</h2><p>Continue from Signing, or load the public example to explore this lesson independently.</p><a className="secondary-button" href="#signing">Go to signing</a><button className="primary-button" disabled={runtime.busy || runtime.status.state !== 'ready'} onClick={() => restore(true)}>Use signed example</button></section>}
 
     {runtime.status.state !== 'ready' && <div className="tx-runtime panel" role="status"><p>{runtime.status.message}</p>{runtime.status.state === 'error' ? <button className="secondary-button" onClick={runtime.retry}>Restart Python</button> : <progress max="100" value={runtime.status.progress} aria-label="Loading Python" />}</div>}
     {(page === 'transaction' || page === 'signing') && data && result && active && <>
@@ -135,9 +135,9 @@ export function TransactionLesson({ runtime, page, visible }: { runtime: ReturnT
     {signedTrace?.transaction?.signing && <>
       {visible && page === 'execution' && <ScriptExecution key={signedTrace.transaction.signing.txid} runtime={runtime} hex={signedTrace.steps[0].hex} scripts={signedTrace.transaction.previousScripts} />}
       <div hidden={page !== 'propagation'}><TransactionJourney key={signedTrace.transaction.signing.txid + ':' + signedTrace.transaction.fee} enabled={visible && page === 'propagation'} txid={signedTrace.transaction.signing.txid} hex={signedTrace.steps[0].hex} fee={signedTrace.transaction.fee} vsize={signedTrace.steps[0].byteLength} inputs={draft.inputs} scripts={signedTrace.transaction.previousScripts} /></div>
-      <div hidden={page !== 'mining' && page !== 'blocks'}><MiningLesson key={signedTrace.transaction.signing.txid + ':' + signedTrace.transaction.fee} page={page === 'blocks' ? 'blocks' : 'mining'} runtime={runtime} txid={signedTrace.transaction.signing.txid} fee={signedTrace.transaction.fee} vsize={signedTrace.steps[0].byteLength} /></div>
+      <div hidden={page !== 'construction' && page !== 'mining' && page !== 'blocks'}><BlockConstructionLesson key={signedTrace.transaction.signing.txid + ':' + signedTrace.transaction.fee} page={page} runtime={runtime} hex={signedTrace.steps[0].hex} txid={signedTrace.transaction.signing.txid} fee={signedTrace.transaction.fee} vsize={signedTrace.steps[0].byteLength} network={network} /></div>
     </>}
-    <div className="tx-next-page">{page === 'transaction' && unsignedTrace && !dirty && <a className="primary-button" href="#signing">Continue to signing<ArrowRight size={15} /></a>}{page === 'signing' && signedTrace && !dirty && <a className="primary-button" href="#execution">Verify with Script execution<ArrowRight size={15} /></a>}{page === 'execution' && signedTrace && <a className="primary-button" href="#propagation">Explore propagation<ArrowRight size={15} /></a>}{page === 'propagation' && signedTrace && <a className="primary-button" href="#mining">Continue to mining<ArrowRight size={15} /></a>}{page === 'mining' && signedTrace && <a className="primary-button" href="#blocks">Follow the mined block<ArrowRight size={15} /></a>}</div>
+    <div className="tx-next-page">{page === 'transaction' && unsignedTrace && !dirty && <a className="primary-button" href="#signing">Continue to signing<ArrowRight size={15} /></a>}{page === 'signing' && signedTrace && !dirty && <a className="primary-button" href="#execution">Verify with Script execution<ArrowRight size={15} /></a>}{page === 'execution' && signedTrace && <a className="primary-button" href="#propagation">Explore propagation<ArrowRight size={15} /></a>}{page === 'propagation' && signedTrace && <a className="primary-button" href="#construction">Build a candidate block<ArrowRight size={15} /></a>}{page === 'construction' && signedTrace && <a className="primary-button" href="#mining">Continue to mining<ArrowRight size={15} /></a>}{page === 'mining' && signedTrace && <a className="primary-button" href="#blocks">Follow the mined block<ArrowRight size={15} /></a>}</div>
     <div className="lesson-sources">Read the specification: <a href="https://developer.bitcoin.org/reference/transactions.html#raw-transaction-format" target="_blank" rel="noreferrer">Raw transaction format</a></div>
   </div>;
 }
