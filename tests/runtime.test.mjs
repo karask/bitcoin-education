@@ -87,6 +87,28 @@ test('P2PKH signing matches CPython for both SEC formats, networks, and multiple
   assert.throws(() => adapter.trace_lesson(JSON.stringify(invalid)), /do not match/);
 });
 
+test('Sighash previews and alternate signatures match CPython inside browser Python', () => {
+  const script = [
+    'import sys, json, copy',
+    "sys.path.insert(0, 'tests')",
+    'from test_signing import vectors',
+    'from test_transactions import trace',
+    "seed = vectors()[-1]['input']",
+    'result = []',
+    'for index in (0, 1):',
+    '    for mode in (1, 2, 3, 129, 130, 131):',
+    '        request = copy.deepcopy(seed)',
+    "        request['transaction']['inputs'][index]['sighashType'] = mode",
+    "        result.append({'input': request, 'preview': trace({**request, 'previewSighash': True}), 'signed': trace(request)})",
+    'print(json.dumps(result))',
+  ].join('\n');
+  const vectors = JSON.parse(execFileSync('python3', ['-c', script], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
+  for (const vector of vectors) {
+    assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify({ ...vector.input, previewSighash: true }))), vector.preview);
+    assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.signed);
+  }
+});
+
 test('header hashing in WebAssembly matches independently checked CPython traces', () => {
   const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_mining import vectors;print(json.dumps(vectors()))"], { cwd: root, encoding: 'utf8' }));
   for (const vector of vectors) assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);

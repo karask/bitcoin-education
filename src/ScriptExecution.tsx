@@ -3,7 +3,7 @@ import type { usePython } from './usePython';
 import './execution.css';
 
 const explanations: Record<string, string> = {
-  PUSH_SIGNATURE: 'Push the signature, including its SIGHASH_ALL byte, onto the stack.',
+  PUSH_SIGNATURE: 'Push the signature, including its selected SIGHASH byte, onto the stack.',
   PUSH_PUBLIC_KEY: 'Push the public key above the signature. The stack carries into the locking script.',
   OP_DUP: 'Duplicate the top item so the public key remains available for signature verification.',
   OP_HASH160: 'Replace the duplicated public key with its SHA-256 then RIPEMD-160 hash.',
@@ -23,6 +23,7 @@ export function ScriptExecution({ runtime, hex, scripts }: {runtime: ReturnType<
   const result = runtime.trace?.execution;
   const step = result?.steps[position - 1];
   const done = !!result && position === result.steps.length;
+  const unsupported = result?.error?.code === 'UNSUPPORTED_SIGHASH';
   useEffect(() => {
     if (!playing || !result || done) return;
     const timer = setTimeout(() => setPosition(p => p + 1), 1300);
@@ -39,7 +40,7 @@ export function ScriptExecution({ runtime, hex, scripts }: {runtime: ReturnType<
     <div className="execution-current" aria-live="polite"><span className="output-kicker">{step?.phase ?? 'READY'} · {position} / {result.steps.length}</span><h2>{step ? explanations[step.instruction] ?? 'Push the public-key hash committed to by the previous output.' : 'Begin with an empty stack.'}</h2></div>
     <div className="execution-stacks">{stack('Before instruction', step?.stack_before ?? [])}{stack('After instruction', step?.stack_after ?? [])}</div>
     {step?.digest && <div className="execution-digest"><h3>Transaction signature digest · SIGHASH_ALL</h3><code>{step.digest}</code><p>ECDSA signature verification: {step.signature_valid ? 'passed' : 'failed'}</p></div>}
-    {done && <div className={`execution-verdict ${result.success ? 'passed' : 'failed'}`} role="status"><strong>{result.success ? 'This input’s P2PKH script succeeds' : 'Script execution failed'}</strong><p>{result.error ? `${result.error.code}: ${result.error.message}` : 'The final stack contains 01 (true).'}</p></div>}
+    {done && <div className={`execution-verdict ${result.success ? 'passed' : unsupported ? 'unsupported' : 'failed'}`} role="status"><strong>{result.success ? 'This input’s P2PKH script succeeds' : unsupported ? 'This evaluator cannot check that SIGHASH mode yet' : 'Script execution failed'}</strong><p>{result.error ? `${result.error.code}: ${result.error.message}` : 'The final stack contains 01 (true).'}</p></div>}
     <div className="mining-controls"><button className="secondary-button" disabled={position === 0} onClick={() => {setPlaying(false); setPosition(p => p - 1);}}>Previous</button><button className="primary-button" disabled={done} onClick={() => {setPlaying(false); setPosition(p => p + 1);}}>Next instruction</button><button className="secondary-button" disabled={done} onClick={() => setPlaying(!playing)}>{playing && !done ? 'Pause' : 'Play execution'}</button><button className="text-button" onClick={() => {setPosition(0); setPlaying(false);}}>Restart walkthrough</button></div>
     <details className="mining-details"><summary>Python executed for this experiment</summary><pre>{result.python}</pre></details></> : <p role="status">{runtime.error ?? 'Preparing the library execution trace…'}</p>}
     <p>Scope: the library’s educational evaluator supports standard legacy P2PKH with SIGHASH_ALL. This does not establish that a UTXO exists or is unspent, or validate transaction amounts, locktime, or all node policies.</p>

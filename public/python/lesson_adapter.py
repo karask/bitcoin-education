@@ -406,6 +406,66 @@ def trace_comparison(request):
                 steps=steps, pythonPreamble=preamble, comparisons=rows)
 
 
+
+SIGHASH_NAMES = {1: 'SIGHASH_ALL', 2: 'SIGHASH_NONE', 3: 'SIGHASH_SINGLE',
+                 129: 'SIGHASH_ALL | ANYONECANPAY', 130: 'SIGHASH_NONE | ANYONECANPAY',
+                 131: 'SIGHASH_SINGLE | ANYONECANPAY'}
+
+
+def selected_sighash(row, index, output_count):
+    value = row.get('sighashType', 1)
+    if type(value) is not int or value not in SIGHASH_NAMES:
+        raise ValueError(f'Input {index + 1}: choose a supported SIGHASH mode.')
+    if value & 0x1f == 3 and index >= output_count:
+        raise ValueError(f'Input {index + 1}: SIGHASH_SINGLE needs output {index + 1}; add that output or choose another mode.')
+    return value
+
+
+def trace_sighash(request):
+    """Preview exactly the bytes the library hashes before the key is used."""
+    from bitcoinutils.constants import EMPTY_TX_SEQUENCE, NEGATIVE_SATOSHI, SIGHASH_ANYONECANPAY
+    from bitcoinutils.transactions import Transaction, TxOutput
+    import struct
+    unsigned = trace_transaction({**request, 'signTransaction': False})
+    draft = request['transaction']
+    rows, outputs = draft['inputs'], draft['outputs']
+    tx = Transaction.from_raw(unsigned['steps'][0]['hex'])
+    previews = []
+    for index, row in enumerate(rows):
+        mode = selected_sighash(row, index, len(outputs))
+        script = Script.from_raw(unsigned['transaction']['previousScripts'][index])
+        temporary = Transaction.copy(tx)
+        for item in temporary.inputs:
+            item.script_sig = Script([])
+        temporary.inputs[index].script_sig = script
+        base = mode & 0x1f
+        anyone = bool(mode & SIGHASH_ANYONECANPAY)
+        if base == 2:
+            temporary.outputs = []
+        elif base == 3:
+            chosen = temporary.outputs[index]
+            temporary.outputs = [TxOutput(NEGATIVE_SATOSHI, Script([])) for _ in range(index)] + [chosen]
+        if base in (2, 3):
+            for other_index, item in enumerate(temporary.inputs):
+                if other_index != index:
+                    item.sequence = EMPTY_TX_SEQUENCE
+        if anyone:
+            temporary.inputs = [temporary.inputs[index]]
+        preimage = temporary.to_bytes(False) + struct.pack('<i', mode)
+        digest = tx.get_transaction_digest(index, script, mode)
+        assert hash_sha256(hash_sha256(preimage)) == digest, 'SIGHASH preview must match the library digest.'
+        previews.append(dict(type=mode, name=SIGHASH_NAMES[mode], digest=digest.hex(), preimage=preimage.hex(),
+                             script=script.to_hex(),
+                             inputScope=f'Only input {index + 1} outpoint' if anyone else ('Input 1 outpoint' if len(rows) == 1 else f'All {len(rows)} input outpoints'),
+                             sequenceScope=(f'Only input {index + 1} sequence' if anyone or base in (2, 3)
+                                            else ('Input 1 sequence' if len(rows) == 1 else f'All {len(rows)} input sequences')),
+                             outputScope=(f'All {len(outputs)} outputs' if base == 1 else
+                                          'No outputs' if base == 2 else
+                                          f'Only output {index + 1} (earlier positions are null placeholders)')))
+    return dict(network=request['network'], compressed=True, publicKey='', address='', steps=[],
+                pythonPreamble='', sighash=dict(inputs=previews))
+
+
 def trace_transaction(request):
     """Library serialization with presentation-only offsets and strict form validation."""
     import re
@@ -497,7 +557,9 @@ def trace_transaction(request):
         # Validate all keys and their SEC encoding against the supplied previous locks.
         # No custom cryptography: derivation, hashing, signing, scripts and IDs use the library.
         keys = []
+        modes = []
         for i, row in enumerate(inputs):
+            modes.append(selected_sighash(row, i, len(outputs)))
             key_hex = str(row.get('privateKey', '')).strip().lower()
             if not re.fullmatch(r'[0-9a-f]{64}', key_hex):
                 raise ValueError(f'Input {i + 1}: enter a 32-byte private key as 64 hexadecimal characters.')
@@ -514,20 +576,23 @@ def trace_transaction(request):
             keys.append((key_hex, compressed))
         signing = dict(unsignedHex=namespace['raw_hex'], unsignedBytes=len(bytes.fromhex(namespace['raw_hex'])),
                        unsignedTxid=namespace['tx'].get_txid(), inputs=[])
-        signing_imports = 'from bitcoinutils.keys import PrivateKey\nfrom bitcoinutils.constants import SIGHASH_ALL'
+        signing_imports = 'from bitcoinutils.keys import PrivateKey\nfrom bitcoinutils.constants import SIGHASH_ALL, SIGHASH_NONE, SIGHASH_SINGLE, SIGHASH_ANYONECANPAY'
         preamble += '\n' + signing_imports
         exec(signing_imports, namespace)
         for i, (key_hex, compressed) in enumerate(keys):
+            mode = modes[i]
+            mode_code = SIGHASH_NAMES[mode].replace(' | ANYONECANPAY', ' | SIGHASH_ANYONECANPAY')
             code = (f'key_{i} = PrivateKey.from_bytes(bytes.fromhex({key_hex!r}))\n'
                     f'public_key_{i} = key_{i}.get_public_key().to_hex(compressed={compressed!r})\n'
                     f'assert key_{i}.get_public_key().get_address(compressed={compressed!r}).to_script_pub_key().to_hex() == previous_script_{i}.to_hex()\n'
-                    f'digest_{i} = tx.get_transaction_digest({i}, previous_script_{i}, SIGHASH_ALL)\n'
-                    f'signature_{i} = key_{i}.sign_input(tx, {i}, previous_script_{i}, SIGHASH_ALL)\n'
+                    f'digest_{i} = tx.get_transaction_digest({i}, previous_script_{i}, {mode_code})\n'
+                    f'signature_{i} = key_{i}.sign_input(tx, {i}, previous_script_{i}, {mode_code})\n'
                     f'tx.inputs[{i}].script_sig = Script([signature_{i}, public_key_{i}])')
             exec(code, namespace)
             signing_codes.append(code)
             signing['inputs'].append(dict(digest=namespace[f'digest_{i}'].hex(), signature=namespace[f'signature_{i}'],
-                                          publicKey=namespace[f'public_key_{i}'], scriptSig=namespace['tx'].inputs[i].script_sig.to_hex(), python=code))
+                                          publicKey=namespace[f'public_key_{i}'], scriptSig=namespace['tx'].inputs[i].script_sig.to_hex(), python=code,
+                                          sighashType=mode, sighashName=SIGHASH_NAMES[mode]))
         final_code = 'raw_hex = tx.serialize()\ntxid = tx.get_txid()'
         exec(final_code, namespace)
         snippets.extend(signing_codes + [final_code])
@@ -556,7 +621,7 @@ def trace_transaction(request):
             field(prefix + 'scriptSig length', len(encode_varint(script_size)), 'count', f'{script_size} bytes of unlocking script follow. This CompactSize prefix is outside the script.', sign_code)
             field(prefix + 'signature push', 1, 'count', f'Push the next {sig_size} bytes onto the stack: DER signature plus one sighash byte.', sign_code)
             field(prefix + 'DER signature', sig_size - 1, 'signature', 'ECDSA signature encoded as a DER sequence of the integers r and s. Its length may vary. The sighash byte is separate.', sign_code)
-            field(prefix + 'sighash type', 1, 'header', '01 selects SIGHASH_ALL. It follows the DER signature and is not part of DER. The signing preimage includes this type as a four-byte little-endian integer.', sign_code)
+            field(prefix + 'sighash type', 1, 'header', f'{signed_input["sighashType"]:02x} selects {signed_input["sighashName"]}. It follows the DER signature and is not part of DER. The signing preimage includes this type as a four-byte little-endian integer.', sign_code)
             field(prefix + 'public-key push', 1, 'count', f'Push the next {pub_size} bytes: the SEC-encoded public key.', sign_code)
             field(prefix + 'public key', pub_size, 'script', 'The revealed public key. Its HASH160 must match the previous P2PKH locking script, and the signature must verify against it.', sign_code)
         else:
@@ -722,7 +787,7 @@ def trace_lesson(request_json):
     if kind == 'mining':
         return json.dumps(trace_mining(request))
     if kind == 'transaction':
-        return json.dumps(trace_transaction(request))
+        return json.dumps(trace_sighash(request) if request.get('previewSighash') is True else trace_transaction(request))
     if kind == 'p2pkh':
         return trace_p2pkh(request_json)
     if kind == 'p2sh':

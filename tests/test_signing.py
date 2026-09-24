@@ -55,6 +55,33 @@ def digest_independently(req, result, index):
     return double_sha(raw)
 
 
+def sighash_preimage_independently(req, result, index, mode):
+    # Independent wire layout for the educational fixed v2/final/locktime-0 transaction.
+    rows = req['transaction']['inputs']
+    output_rows = req['transaction']['outputs']
+    signed_hex = bytes.fromhex(result['steps'][0]['hex'])
+    output_fields = [field for field in result['transaction']['fields']
+                     if field['label'].startswith('Output ') and field['label'].endswith('locking script')]
+    base, anyone = mode & 31, bool(mode & 128)
+    included = [index] if anyone else range(len(rows))
+    raw = struct.pack('<iB', 2, len(included))
+    for i in included:
+        row = rows[i]
+        script = bytes.fromhex(result['transaction']['previousScripts'][i]) if i == index else b''
+        sequence = b'\xff' * 4 if base == 1 or i == index else b'\x00' * 4
+        raw += bytes.fromhex(row['txid'])[::-1] + struct.pack('<IB', int(row['vout']), len(script)) + script + sequence
+    selected_outputs = range(len(output_rows)) if base == 1 else [] if base == 2 else range(index + 1)
+    raw += bytes([len(selected_outputs)])
+    for i in selected_outputs:
+        if base == 3 and i < index:
+            raw += b'\xff' * 8 + b'\x00'
+        else:
+            field = output_fields[i]
+            script = signed_hex[field['start']:field['end']]
+            raw += struct.pack('<QB', int(output_rows[i]['amount']), len(script)) + script
+    return raw + struct.pack('<II', 0, mode)
+
+
 class SigningTests(unittest.TestCase):
     def test_independent_digest_and_ecdsa_verification(self):
         for vector in vectors():
@@ -114,6 +141,46 @@ class SigningTests(unittest.TestCase):
         for old, new in zip(before, after):
             self.assertNotEqual(old['digest'], new['digest'])
         self.assertNotEqual(after[0]['digest'], after[1]['digest'])
+
+    def test_six_modes_preview_and_signatures_match_independent_wire_preimages(self):
+        for index in (0, 1):
+            for mode in (1, 2, 3, 129, 130, 131):
+                with self.subTest(index=index, mode=mode):
+                    req = copy.deepcopy(vectors()[-1]['input'])
+                    req['transaction']['inputs'][index]['sighashType'] = mode
+                    preview_request = copy.deepcopy(req)
+                    preview_request['previewSighash'] = True
+                    preview = trace(preview_request)['sighash']['inputs'][index]
+                    signed = trace(req)
+                    item = signed['transaction']['signing']['inputs'][index]
+                    preimage = sighash_preimage_independently(req, signed, index, mode)
+                    digest = double_sha(preimage)
+                    self.assertEqual(preview['preimage'], preimage.hex())
+                    self.assertEqual(preview['digest'], digest.hex())
+                    self.assertEqual(item['digest'], digest.hex())
+                    self.assertEqual(item['sighashType'], mode)
+                    signature = bytes.fromhex(item['signature'])
+                    self.assertEqual(signature[-1], mode)
+                    verifier = VerifyingKey.from_string(bytes.fromhex(item['publicKey']), curve=SECP256k1)
+                    self.assertTrue(verifier.verify_digest(signature[:-1], digest, sigdecode=sigdecode_der))
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        exec(signed['transaction']['python'], {})
+                    self.assertEqual(stdout.getvalue().strip(), signed['steps'][0]['hex'])
+
+    def test_single_requires_matching_output_and_rejects_unsupported_modes(self):
+        req = copy.deepcopy(vectors()[-1]['input'])
+        req['transaction']['outputs'].pop()
+        req['transaction']['inputs'][1]['sighashType'] = 3
+        with self.assertRaisesRegex(ValueError, 'needs output 2'):
+            trace(req)
+        req['previewSighash'] = True
+        with self.assertRaisesRegex(ValueError, 'needs output 2'):
+            trace(req)
+        for value in (0, 4, 128, 255, True, '1'):
+            req = signed_request()
+            req['transaction']['inputs'][0]['sighashType'] = value
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'supported SIGHASH'):
+                trace(req)
 
     def test_invalid_keys_and_mismatched_formats(self):
         for key in ['', '01', '0' * 64, 'f' * 64, 'z' * 64, '0' * 63 + '2']:

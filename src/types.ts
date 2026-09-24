@@ -3,6 +3,10 @@ export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
 export type TransactionPage = 'transaction' | 'signing' | 'execution' | 'propagation' | 'construction' | 'mining' | 'blocks';
 export type LessonKind = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
+export type SighashType = 1 | 2 | 3 | 129 | 130 | 131;
+export interface SighashPreview {
+  inputs: { type: SighashType; name: string; digest: string; preimage: string; inputScope: string; sequenceScope: string; outputScope: string; script: string }[];
+}
 export interface CandidateResult {
   height: number; budget: number; used: number; subsidy: number; fees: number; reward: number;
   entries: { id: string; label: string; fee: number; vsize: number; rate: number; txid: string; selected: boolean }[];
@@ -21,7 +25,7 @@ export interface MiningResult {
 }
 
 export interface TransactionDraft {
-  inputs: { txid: string; vout: string; amount: string; source: string; sourceType: 'address' | 'script'; privateKey?: string; compressed?: boolean }[];
+  inputs: { txid: string; vout: string; amount: string; source: string; sourceType: 'address' | 'script'; privateKey?: string; compressed?: boolean; sighashType?: SighashType }[];
   outputs: { address: string; amount: string }[];
 }
 export interface TransactionResult {
@@ -31,7 +35,7 @@ export interface TransactionResult {
   python: string;
   signing?: {
     unsignedHex: string; unsignedTxid: string; txid: string; unsignedBytes: number;
-    inputs: { digest: string; signature: string; publicKey: string; scriptSig: string; python: string }[];
+    inputs: { digest: string; signature: string; publicKey: string; scriptSig: string; python: string; sighashType: SighashType; sighashName: string }[];
   };
 }
 
@@ -42,6 +46,7 @@ export interface LessonInput {
   signTransaction?: boolean;
   transaction?: TransactionDraft;
   kind?: LessonKind;
+  previewSighash?: boolean;
   publicKeys?: string[];
   threshold?: number;
   publicKey: string;
@@ -76,6 +81,7 @@ export interface LessonTrace {
   mining?: MiningResult;
   candidate?: CandidateResult;
   transaction?: TransactionResult;
+  sighash?: SighashPreview;
   outputScript?: StepResult;
   relatedScripts?: { title: string; result: StepResult }[];
   comparisons?: { type: string; address: string; encoding: string; commitment: string; spending: string; script: string; scriptBytes: number }[];

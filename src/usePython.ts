@@ -85,5 +85,5 @@ export function usePython() {
     setGeneration((value) => value + 1);
   }, []);
 
-  return { status, trace, error, busy, activity, calculate, invalidate, retry };
+  return { status, trace, error, busy, activity, previewingSighash: lastInput.current?.previewSighash === true, calculate, invalidate, retry };
 }

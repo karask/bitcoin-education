@@ -1,6 +1,7 @@
 import json
 import unittest
-from test_signing import vectors
+from test_signing import vectors, signed_request
+from test_transactions import trace
 from test_p2pkh import adapter
 
 
@@ -19,6 +20,17 @@ class ExecutionTests(unittest.TestCase):
                     namespace = {}
                     exec(result['python'], namespace)
                     self.assertEqual(namespace['result']['steps'], result['steps'])
+
+    def test_alternate_sighash_is_reported_as_unsupported_not_bad_signature(self):
+        request = signed_request()
+        request['transaction']['inputs'][0]['sighashType'] = 2
+        signed = trace(request)
+        execution = adapter.trace_execution(dict(execution=dict(
+            hex=signed['steps'][0]['hex'],
+            previousScript=signed['transaction']['previousScripts'][0],
+            inputIndex=0, experiment='original')))['execution']
+        self.assertEqual(execution['error']['code'], 'UNSUPPORTED_SIGHASH')
+        self.assertEqual(execution['steps'][-1]['instruction'], 'OP_CHECKSIG')
 
     def test_wrong_key_stops_at_equalverify(self):
         trace = vectors()[0]['trace']
