@@ -3,9 +3,11 @@ export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
 export type TransactionPage = 'transaction' | 'signing' | 'execution' | 'propagation' | 'construction' | 'mining' | 'blocks';
 export type LessonKind = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
+export type SpendType = 'p2pkh' | 'p2wpkh';
 export type SighashType = 1 | 2 | 3 | 129 | 130 | 131;
 export interface SighashPreview {
-  inputs: { type: SighashType; name: string; digest: string; preimage: string; inputScope: string; sequenceScope: string; outputScope: string; script: string }[];
+  spendType: SpendType;
+  inputs: { type: SighashType; name: string; digest: string; preimage: string | null; algorithm: 'Legacy' | 'BIP143'; amountScope: string; inputScope: string; sequenceScope: string; outputScope: string; script: string }[];
 }
 export interface CandidateResult {
   height: number; budget: number; used: number; subsidy: number; fees: number; reward: number;
@@ -25,17 +27,21 @@ export interface MiningResult {
 }
 
 export interface TransactionDraft {
+  spendType?: SpendType;
   inputs: { txid: string; vout: string; amount: string; source: string; sourceType: 'address' | 'script'; privateKey?: string; compressed?: boolean; sighashType?: SighashType }[];
   outputs: { address: string; amount: string }[];
 }
 export interface TransactionResult {
+  spendType: SpendType; hasWitness: boolean; txid: string; wtxid: string;
+  baseSize: number; totalSize: number; weight: number; vsize: number;
+  previousAmounts: number[]; scriptCodes: string[];
   totalInput: number; totalOutput: number; fee: number;
   previousScripts: string[];
   fields: (ByteField & { category: string; python: string })[];
   python: string;
   signing?: {
     unsignedHex: string; unsignedTxid: string; txid: string; unsignedBytes: number;
-    inputs: { digest: string; signature: string; publicKey: string; scriptSig: string; python: string; sighashType: SighashType; sighashName: string }[];
+    inputs: { digest: string; signature: string; publicKey: string; scriptSig: string; witness: string[]; python: string; sighashType: SighashType; sighashName: string }[];
   };
 }
 

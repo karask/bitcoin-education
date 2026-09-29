@@ -1,21 +1,8 @@
 """Known Bitcoin vectors, trace consistency, and adapter validation in CPython."""
-import importlib.util
 import json
-from pathlib import Path
-import sys
 import unittest
-import zipfile
 
-ROOT = Path(__file__).resolve().parents[1]
-PACKAGES = ROOT / '.test-artifacts' / 'python-packages'
-PACKAGES.mkdir(parents=True, exist_ok=True)
-for wheel in json.loads((ROOT / 'public/runtime/manifest.json').read_text())['wheels']:
-    with zipfile.ZipFile(ROOT / 'public/runtime' / wheel['path']) as archive:
-        archive.extractall(PACKAGES)
-sys.path.insert(0, str(PACKAGES))
-spec = importlib.util.spec_from_file_location('lesson_adapter', ROOT / 'public/python/lesson_adapter.py')
-adapter = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(adapter)
+from python_test_support import adapter
 
 PUBLIC_KEY = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
 VECTORS = [

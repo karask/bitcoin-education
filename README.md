@@ -3,7 +3,7 @@
 A local, browser-native Bitcoin learning lab. Seven address lessons cover legacy,
 script-hash, SegWit, nested SegWit, Taproot, and address comparisons with real
 Python, synchronized pseudocode, and annotated bytes. Both light and dark themes
-are included. A transaction lab builds and signs P2PKH transactions from editable
+are included. A transaction lab builds and signs P2PKH and native P2WPKH transactions from editable
 UTXOs and outputs, with a field-by-field hex explorer and runnable Python.
 
 ## Learning path
@@ -20,7 +20,7 @@ Append a lesson fragment to `/bitcoin-education/`:
 | `#p2tr` | X-only internal key → TapTweak → output key → Bech32m |
 | `#compare` | Six address constructions and locking scripts from one key |
 | `#transaction` | Transaction anatomy: UTXOs, outputs, fees, unsigned bytes |
-| `#signing` | P2PKH digests, signatures, scriptSigs, signed bytes |
+| `#signing` | Legacy/BIP143 digests, signatures, scriptSigs/witnesses, signed bytes |
 | `#execution` | P2PKH instruction walkthrough, stack transitions, failure experiments |
 | `#propagation` | Node relay and separate local mempools |
 | `#construction` | Candidate selection, BIP34 coinbase, Merkle tree |
@@ -33,31 +33,43 @@ tree. The comparison lab uses `<key> OP_CHECKSIG` for P2SH and P2WSH, making
 their common one-key input explicit rather than silently adding multisig keys.
 
 The transaction lab accepts 1–20 inputs and outputs, integer satoshi amounts,
-and mainnet or testnet P2PKH addresses. Previous locks can also be supplied as
-standard P2PKH script hex. UTXO existence and unspent status are not checked.
+and mainnet or testnet addresses matching the selected spend example. Previous
+locks can also be supplied as standard P2PKH or P2WPKH script hex. Each example
+uses the same type for its outputs; mixed input/output types are not exposed yet. UTXO existence and unspent status are not checked.
 The example outpoint is fictional. Version 2, final sequences, zero locktime,
 and initially empty scriptSigs keep the construction focused on transaction structure.
 Previous amounts and scripts are metadata, not serialized input fields. Fees
 use supplied amounts; unsigned byte size is not a signed fee-rate estimate.
 
-The signing action uses `PrivateKey.sign_input` with `SIGHASH_ALL` for each input.
-Each 32-byte hex key and selected SEC format must match its supplied previous
-locking script. The public example uses scalar 1; use disposable learning keys,
-never funded wallet keys. Keys are kept in memory and appear in the displayed
-and copied Python. Both compressed and uncompressed public keys are supported.
-The result explains each digest, signature, sighash byte, and scriptSig, then
-compares unsigned and signed sizes and transaction IDs. Tests independently
-construct legacy SIGHASH_ALL digests and verify the signatures with ECDSA.
+The signing action uses `PrivateKey.sign_input` for P2PKH or `sign_segwit_input`
+for native P2WPKH. SIGHASH_ALL is the default. A collapsed explorer before signing
+lets each input choose ALL, NONE, SINGLE, or any of those with ANYONECANPAY,
+and shows the committed fields and actual library digest. Legacy also exposes
+the exact preimage. The BIP143 trace helper is included locally; connecting its
+preimage fields to the native explorer is a remaining UI integration step.
+Each 32-byte hex key must match its supplied previous lock. The public example
+uses scalar 1; use disposable learning keys, never funded wallet keys. Keys stay
+in memory and appear in the displayed/copied Python. Legacy supports both SEC
+formats; this native lesson requires compressed keys.
 
-Script execution uses `bitcoinutils.learning.trace_p2pkh_input` from version
-0.8.7 inside the browser worker. Select an input and step through or play its
+Native signatures go in witness stacks and scriptSigs stay empty. The byte
+explorer distinguishes marker, flag, CompactSize witness counts/lengths,
+signatures, and public keys. Results show TXID, WTXID, base/total size metadata,
+weight, and virtual size. The native unsigned draft uses base serialization
+until witness data is added. Tests independently construct all six BIP143 and
+legacy preimages, verify ECDSA signatures, strip witness serialization, and
+check IDs and weight/vsize. Browser Python is compared with CPython.
+
+Script execution uses the project-local `bitcoin_education.trace_p2pkh_input`
+inside the browser worker, built on the core `bitcoin-utils` APIs. Select an input and step through or play its
 scriptSig and scriptPubKey, with before/after stacks and the CHECKSIG digest.
 Experiments change a public key, signature byte, or output on a separate copy.
 The evaluator supports standard legacy P2PKH with SIGHASH_ALL; it does not
 provide full node validation, on-chain UTXO checks, or broadcasting.
 
-Seven separate transaction menu items share the in-memory draft and signed
-transaction, including when navigating to address lessons and back. Next-step
+One set of seven transaction menu items serves both spend examples. A compact
+selector switches between Legacy P2PKH and Native P2WPKH while preserving each
+example’s in-memory draft and results, including across address lessons. Next-step
 links connect Anatomy → Signing → Script execution → Propagation → Block construction → Mining → Block propagation.
 Directly opening a later
 stage offers a signed public example; reload starts a fresh session.
@@ -66,18 +78,28 @@ In Propagation, play or step through modeled announcements,
 requests, receipts, and admission. Select any of five nodes to inspect its own
 mempool; change C's illustrative fee threshold, remove a referenced output at
 C, or disconnect E. Added fee competition affects only the selected snapshot.
-The scene uses the actual signed TXID and bytes, assumed starting UTXOs, and
-explicitly modeled validation. No real network broadcast takes place, and the
+Both examples use the same relay diagram and mempool model. The scene uses
+actual TXID/WTXID, signed bytes (including witnesses), virtual size, assumed
+starting UTXOs, and explicitly modeled validation. Connections are assumed to
+have negotiated BIP339 wtxidrelay; inv/getdata use MSG_WTX. No real network broadcast takes place, and the
 transaction stays unconfirmed there. Block construction uses `bitcoin-utils`
-0.8.7 to select from real serialized legacy transactions, build a BIP34
-coinbase with subsidy and assumed fees, and trace every transaction Merkle pair.
+0.8.7 transaction objects with local `bitcoin_education` helpers to select
+serialized legacy transactions, build a BIP34 coinbase with subsidy and assumed
+fees, and trace every transaction Merkle pair.
 Changing height or selection changes the coinbase TXID and committed root.
 Mining hashes an 80-byte header containing that root with a deliberately easy
 target. The previous hash and timestamp are illustrative, so the result is not
 a valid block on the selected chain. Block relay and confirmations remain a
 separate simulation that assumes a valid block was found. Full block
 serialization and contextual validation are not implemented.
-See [LIBRARY_GAPS.md](LIBRARY_GAPS.md) for remaining validation APIs.
+The complete former library learning package, including newer native helpers,
+now lives in `public/python/bitcoin_education`. Its tests and MIT license moved
+with it. The migration preserves current lesson behavior: native execution,
+exact-preimage inspection, and witness-commitment screens still need to be
+connected to the migrated APIs. They no longer depend on a library release.
+See the [native integration plan](docs/native-p2wpkh-library-requirements.md),
+[local package docs](public/python/bitcoin_education/README.md), and
+[model boundaries](LIBRARY_GAPS.md).
 
 ## Start locally
 
@@ -138,8 +160,17 @@ by an organization policy, use **Settings → Pages → Source → GitHub Action
 
 - React and TypeScript handle presentation, navigation, and animation.
 - One module Web Worker owns Pyodide and serializes Python operations.
-- `public/python/lesson_adapter.py` composes existing library APIs. The exact
-  Python snippets it executes are sent to the code panel.
+- `public/python/lesson_adapter.py` composes core library APIs and local helpers.
+  The exact Python snippets it executes are sent to the code panel.
+- `public/python/bitcoin_education` owns educational Script evaluators, Sighash
+  traces, and coinbase/Merkle walkthroughs. It is part of this website, with no
+  imports from `bitcoinutils.learning`.
+- `public/python/manifest.json` lists the Python modules loaded into the browser
+  worker and the WebAssembly tests. Add new runtime modules to this manifest.
+- To run copied examples that import local helpers, install `bitcoin-utils` and
+  run `PYTHONPATH=public/python python3 your_example.py` from the repository root.
+- CPython and WebAssembly tests explicitly block the former library learning
+  package so a stale wheel cannot hide a missed migration.
 - Returned traces contain real bytes and semantic byte ranges. JavaScript
   formats these values; it does not implement Bitcoin algorithms.
 - Edited or invalid inputs clear previous results. Request IDs prevent older
@@ -152,7 +183,8 @@ The P2SH lesson uses `Script` and `P2shAddress` with the same library hash helpe
 Start at `#p2sh` to build a multisig redeem script from three distinct compressed
 public keys. Change the threshold or key order, inspect every script byte, and
 compare the redeem script, address, and output script. The spending explanation
-is conceptual; the application does not execute scripts or sign transactions.
+in the address lesson is conceptual; transaction signing and P2PKH execution
+are separate lessons.
 The final Base58 string is not divided into byte-colored substrings, because
 Base58 character positions do not preserve the underlying field boundaries.
 Bech32 and Bech32m use a separate five-bit symbol explorer; these values are

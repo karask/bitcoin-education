@@ -10,6 +10,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const runtimeDir = `${root}public/runtime/`;
 const input = { publicKey: '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', network: 'mainnet', compressed: true };
 let adapter;
+let educationVectors;
 
 before(async () => {
   const py = await loadPyodide({ indexURL: runtimeDir, fullStdLib: false });
@@ -22,9 +23,18 @@ before(async () => {
     py.unpackArchive(new Uint8Array(bytes), 'zip', { extractDir: sitePackages });
   }
   py.FS.mkdirTree('/app');
-  py.FS.writeFile('/app/lesson_adapter.py', await readFile(`${root}public/python/lesson_adapter.py`, 'utf8'));
+  const sourceManifest = JSON.parse(await readFile(`${root}public/python/manifest.json`, 'utf8'));
+  for (const file of sourceManifest.files) {
+    const destination = `/app/${file}`;
+    py.FS.mkdirTree(destination.slice(0, destination.lastIndexOf('/')));
+    py.FS.writeFile(destination, await readFile(`${root}public/python/${file}`, 'utf8'));
+  }
+  // Run the entire browser suite as if the core library had no learning package.
+  py.runPython("import importlib.abc, sys\nclass NoLibraryLearning(importlib.abc.MetaPathFinder):\n    def find_spec(self, fullname, path=None, target=None):\n        if fullname == 'bitcoinutils.learning' or fullname.startswith('bitcoinutils.learning.'):\n            raise ModuleNotFoundError('Removed library learning package must not be imported')\nsys.meta_path.insert(0, NoLibraryLearning())");
   py.runPython("import sys; sys.path.insert(0, '/app')");
   adapter = py.pyimport('lesson_adapter');
+  py.FS.writeFile('/app/education_runtime_vectors.py', await readFile(`${root}tests/education_runtime_vectors.py`, 'utf8'));
+  educationVectors = py.pyimport('education_runtime_vectors');
 });
 
 test('WebAssembly produces the known compressed mainnet vector and full payload', () => {
@@ -130,4 +140,15 @@ test('candidate construction in WebAssembly matches CPython and feeds the mining
 test('P2PKH execution and failure experiments match CPython in WebAssembly', () => {
   const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_execution import wasm_vectors;print(json.dumps(wasm_vectors()))"], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
   for (const vector of vectors) assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);
+});
+
+test('native P2WPKH unsigned bytes, BIP143 previews, and witnesses match CPython in WebAssembly', () => {
+  const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_native_transactions import wasm_vectors;print(json.dumps(wasm_vectors()))"], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
+  for (const vector of vectors) assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);
+});
+
+
+test('migrated native execution, preimage, and witness-commitment helpers match CPython without library learning', () => {
+  const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');import python_test_support;from education_runtime_vectors import vectors;print(json.dumps(vectors()))"], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
+  for (const vector of vectors) assert.deepEqual(JSON.parse(educationVectors.run(JSON.stringify(vector.input))), vector.result);
 });

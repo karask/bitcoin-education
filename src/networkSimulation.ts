@@ -9,7 +9,7 @@ export const NODES = [
 export type NodeId = typeof NODES[number]['id'];
 export const LINKS: [NodeId, NodeId][] = [['A', 'B'], ['A', 'C'], ['B', 'D'], ['C', 'D'], ['B', 'E'], ['D', 'E']];
 export type NodeStatus = 'unseen' | 'requested' | 'checking' | 'accepted' | 'policy' | 'missing' | 'offline';
-export interface SimulationOptions { feeRate: number; selectiveMinimum: number; missingAtC: boolean; offlineE: boolean }
+export interface SimulationOptions { feeRate: number; selectiveMinimum: number; missingAtC: boolean; offlineE: boolean; relayByWtxid?: boolean; withWitness?: boolean }
 export interface Entry { id: string; label: string; vsize: number; feeRate: number }
 export interface Event { from: NodeId | 'wallet'; to: NodeId; kind: 'announce' | 'receive' | 'check' }
 export interface Simulation {
@@ -43,12 +43,14 @@ function advanceEvent(state: Simulation, options: SimulationOptions, wave: numbe
       text = `${event.from} announces the ID to ${event.to}. ${label} already knows or is fetching it; no second download is scheduled in this model.`;
     } else {
       next.nodes[event.to] = 'requested';
-      text = `${event.from} announces the transaction ID (inv). ${label} requests its bytes (getdata).`;
+      text = options.relayByWtxid
+        ? `${event.from} announces the WTXID (inv, MSG_WTX). ${label} requests its bytes (getdata, MSG_WTX).`
+        : `${event.from} announces the transaction ID (inv). ${label} requests its bytes (getdata).`;
       next.queue.push({ ...event, kind: 'receive' });
     }
   } else if (event.kind === 'receive') {
     next.nodes[event.to] = 'checking';
-    text = `${label} receives the transaction bytes${event.from === 'wallet' ? ' from your wallet' : ` from ${event.from} (tx)`}. Node-local checks come next.`;
+    text = `${label} receives the transaction bytes${options.withWitness ? ' including witness data' : ''}${event.from === 'wallet' ? ' from your wallet' : ` from ${event.from} (tx)`}. Node-local checks come next.`;
     next.queue.push({ ...event, kind: 'check' });
   } else if (event.to === 'C' && options.missingAtC) {
     next.nodes.C = 'missing';

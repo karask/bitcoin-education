@@ -45,7 +45,12 @@ async function initialize() {
     status(`Preparing ${wheel.package}…`, 46 + Math.round(((i + 1) / manifest.wheels.length) * 40));
   }
   py.FS.mkdirTree('/app');
-  py.FS.writeFile('/app/lesson_adapter.py', await (await checkedFetch(new URL('python/lesson_adapter.py', appBase).href)).text());
+  const sourceManifest = await (await checkedFetch(new URL('python/manifest.json', appBase).href)).json() as { files: string[] };
+  for (const file of sourceManifest.files) {
+    const destination = `/app/${file}`;
+    py.FS.mkdirTree(destination.slice(0, destination.lastIndexOf('/')));
+    py.FS.writeFile(destination, await (await checkedFetch(new URL(`python/${file}`, appBase).href)).text());
+  }
   py.runPython("import sys; sys.path.insert(0, '/app')");
   const adapter = py.pyimport('lesson_adapter');
   reply({ type: 'status', status: { state: 'ready', message: 'Python is running in your browser', progress: 100 } });

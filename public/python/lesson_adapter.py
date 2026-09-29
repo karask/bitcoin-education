@@ -1,7 +1,7 @@
-"""Educational traces composed exclusively from python-bitcoin-utils operations.
+"""Educational traces composed from bitcoinutils core APIs and local lesson helpers.
 
 The snippets returned to the UI are the exact snippets executed here. The
-adapter adds presentation metadata and bytes slicing/concatenation, not crypto.
+adapter adds presentation metadata; bitcoin_education owns the scoped teaching algorithms.
 """
 import json
 
@@ -412,28 +412,41 @@ SIGHASH_NAMES = {1: 'SIGHASH_ALL', 2: 'SIGHASH_NONE', 3: 'SIGHASH_SINGLE',
                  131: 'SIGHASH_SINGLE | ANYONECANPAY'}
 
 
-def selected_sighash(row, index, output_count):
+def selected_sighash(row, index, output_count, spend_type="p2pkh"):
     value = row.get('sighashType', 1)
     if type(value) is not int or value not in SIGHASH_NAMES:
         raise ValueError(f'Input {index + 1}: choose a supported SIGHASH mode.')
-    if value & 0x1f == 3 and index >= output_count:
+    if spend_type == "p2pkh" and value & 0x1f == 3 and index >= output_count:
         raise ValueError(f'Input {index + 1}: SIGHASH_SINGLE needs output {index + 1}; add that output or choose another mode.')
     return value
 
 
 def trace_sighash(request):
-    """Preview exactly the bytes the library hashes before the key is used."""
+    """Preview the library digest and scope before signing; legacy also exposes its preimage."""
     from bitcoinutils.constants import EMPTY_TX_SEQUENCE, NEGATIVE_SATOSHI, SIGHASH_ANYONECANPAY
     from bitcoinutils.transactions import Transaction, TxOutput
     import struct
     unsigned = trace_transaction({**request, 'signTransaction': False})
     draft = request['transaction']
     rows, outputs = draft['inputs'], draft['outputs']
+    spend_type = unsigned['transaction']['spendType']
     tx = Transaction.from_raw(unsigned['steps'][0]['hex'])
     previews = []
     for index, row in enumerate(rows):
-        mode = selected_sighash(row, index, len(outputs))
-        script = Script.from_raw(unsigned['transaction']['previousScripts'][index])
+        mode = selected_sighash(row, index, len(outputs), spend_type)
+        script = Script.from_raw(unsigned['transaction']['scriptCodes'][index])
+        if spend_type == 'p2wpkh':
+            base, anyone = mode & 0x1f, bool(mode & SIGHASH_ANYONECANPAY)
+            amount = unsigned['transaction']['previousAmounts'][index]
+            digest = tx.get_transaction_segwit_digest(index, script, amount, mode)
+            previews.append(dict(type=mode, name=SIGHASH_NAMES[mode], digest=digest.hex(), preimage=None,
+                script=script.to_hex(), algorithm='BIP143',
+                inputScope=f'Only input {index + 1} outpoint' if anyone else f'All {len(rows)} input outpoints',
+                sequenceScope=f'Only input {index + 1} sequence' if anyone or base in (2, 3) else f'All {len(rows)} input sequences',
+                outputScope=f'All {len(outputs)} outputs' if base == 1 else
+                            f'Only output {index + 1}' if base == 3 and index < len(outputs) else 'No outputs · hashOutputs is zero',
+                amountScope=f'Input {index + 1}: {amount:,} sats committed'))
+            continue
         temporary = Transaction.copy(tx)
         for item in temporary.inputs:
             item.script_sig = Script([])
@@ -455,7 +468,7 @@ def trace_sighash(request):
         digest = tx.get_transaction_digest(index, script, mode)
         assert hash_sha256(hash_sha256(preimage)) == digest, 'SIGHASH preview must match the library digest.'
         previews.append(dict(type=mode, name=SIGHASH_NAMES[mode], digest=digest.hex(), preimage=preimage.hex(),
-                             script=script.to_hex(),
+                             script=script.to_hex(), algorithm='Legacy', amountScope='Not committed in legacy P2PKH',
                              inputScope=f'Only input {index + 1} outpoint' if anyone else ('Input 1 outpoint' if len(rows) == 1 else f'All {len(rows)} input outpoints'),
                              sequenceScope=(f'Only input {index + 1} sequence' if anyone or base in (2, 3)
                                             else ('Input 1 sequence' if len(rows) == 1 else f'All {len(rows)} input sequences')),
@@ -463,7 +476,7 @@ def trace_sighash(request):
                                           'No outputs' if base == 2 else
                                           f'Only output {index + 1} (earlier positions are null placeholders)')))
     return dict(network=request['network'], compressed=True, publicKey='', address='', steps=[],
-                pythonPreamble='', sighash=dict(inputs=previews))
+                pythonPreamble='', sighash=dict(spendType=spend_type, inputs=previews))
 
 
 def trace_transaction(request):
@@ -476,6 +489,12 @@ def trace_transaction(request):
         raise ValueError('Choose mainnet or testnet.')
     setup(network)
     draft = request.get('transaction', {})
+    spend_type = draft.get('spendType', 'p2pkh')
+    if spend_type not in ('p2pkh', 'p2wpkh'):
+        raise ValueError('Choose the P2PKH or native P2WPKH spend example.')
+    native = spend_type == 'p2wpkh'
+    address_class = 'P2wpkhAddress' if native else 'P2pkhAddress'
+    script_size_expected = 22 if native else 25
     inputs, outputs = draft.get('inputs', []), draft.get('outputs', [])
     if not isinstance(inputs, list) or not isinstance(outputs, list) or not (1 <= len(inputs) <= 20 and 1 <= len(outputs) <= 20):
         raise ValueError('Use between 1 and 20 inputs and outputs.')
@@ -491,19 +510,19 @@ def trace_transaction(request):
 
     def address_script(address, label):
         try:
-            script = P2pkhAddress(address=address).to_script_pub_key()
-            if len(script.to_bytes()) != 25:
-                raise ValueError('Invalid P2PKH length')
+            script = (P2wpkhAddress if native else P2pkhAddress)(address=address).to_script_pub_key()
+            if len(script.to_bytes()) != script_size_expected:
+                raise ValueError('Invalid public-key-hash script length')
             return script
         except (ValueError, TypeError, IndexError):
-            raise ValueError(f'{label}: enter a valid {network} P2PKH address with a correct checksum.') from None
+            raise ValueError(f'{label}: enter a valid {network} {spend_type.upper()} address with a correct checksum.') from None
 
-    preamble = ('from bitcoinutils.setup import setup\nfrom bitcoinutils.keys import P2pkhAddress\n'
-                'from bitcoinutils.script import Script\nfrom bitcoinutils.transactions import Transaction, TxInput, TxOutput\n'
+    preamble = ('from bitcoinutils.setup import setup\nfrom bitcoinutils.keys import P2pkhAddress, P2wpkhAddress\n'
+                'from bitcoinutils.script import Script\nfrom bitcoinutils.transactions import Transaction, TxInput, TxOutput, TxWitnessInput\n'
                 f'setup({network!r})')
     namespace = {}
     exec(preamble, namespace)
-    snippets, previous_scripts, amounts, out_amounts = [], [], [], []
+    snippets, previous_scripts, script_codes, amounts, out_amounts = [], [], [], [], []
     seen = set()
     for i, row in enumerate(inputs):
         label = f'Input {i + 1}'
@@ -518,26 +537,30 @@ def trace_transaction(request):
         source = str(row.get('source', '')).strip()
         if row.get('sourceType') == 'script':
             source = source.lower()
-            if not re.fullmatch(r'76a914[0-9a-f]{40}88ac', source):
-                raise ValueError(f'{label}: use a standard 25-byte P2PKH script: 76a914 + 20-byte hash + 88ac.')
+            pattern = r'0014[0-9a-f]{40}' if native else r'76a914[0-9a-f]{40}88ac'
+            if not re.fullmatch(pattern, source):
+                expected = '0014 + 20-byte hash' if native else '76a914 + 20-byte hash + 88ac'
+                raise ValueError(f'{label}: use a standard {spend_type.upper()} script: {expected}.')
             script = Script.from_raw(source)
             source_code = f'Script.from_raw({source!r})'
         elif row.get('sourceType') == 'address':
             script = address_script(source, label)
-            source_code = f'P2pkhAddress(address={source!r}).to_script_pub_key()'
+            source_code = f'{address_class}(address={source!r}).to_script_pub_key()'
         else:
             raise ValueError(f'{label}: choose address or locking script.')
         previous_scripts.append(script.to_hex())
+        script_codes.append(P2pkhAddress(hash160=script.to_hex()[4:]).to_script_pub_key().to_hex() if native else script.to_hex())
         amounts.append(amount)
         snippets.append(f'# UTXO metadata: previous amount and lock are not serialized in this input.\n'
                         f'previous_amount_{i} = {amount}\nprevious_script_{i} = {source_code}\n'
+                        f'script_code_{i} = Script.from_raw({script_codes[i]!r})\n'
                         f'input_{i} = TxInput({txid!r}, {vout}, script_sig=Script([]), sequence=bytes.fromhex("ffffffff"))')
     for i, row in enumerate(outputs):
         address = str(row.get('address', '')).strip()
         address_script(address, f'Output {i + 1}')
         amount = integer(row.get('amount'), f'Output {i + 1} amount', maximum)
         out_amounts.append(amount)
-        snippets.append(f'output_{i} = TxOutput({amount}, P2pkhAddress(address={address!r}).to_script_pub_key())')
+        snippets.append(f'output_{i} = TxOutput({amount}, {address_class}(address={address!r}).to_script_pub_key())')
     total_in, total_out = sum(amounts), sum(out_amounts)
     if total_in > maximum or total_out > maximum:
         raise ValueError('The total value cannot exceed 21 million BTC.')
@@ -559,7 +582,7 @@ def trace_transaction(request):
         keys = []
         modes = []
         for i, row in enumerate(inputs):
-            modes.append(selected_sighash(row, i, len(outputs)))
+            modes.append(selected_sighash(row, i, len(outputs), spend_type))
             key_hex = str(row.get('privateKey', '')).strip().lower()
             if not re.fullmatch(r'[0-9a-f]{64}', key_hex):
                 raise ValueError(f'Input {i + 1}: enter a 32-byte private key as 64 hexadecimal characters.')
@@ -570,9 +593,12 @@ def trace_transaction(request):
             compressed = row.get('compressed', True)
             if not isinstance(compressed, bool):
                 raise ValueError(f'Input {i + 1}: choose compressed or uncompressed public-key format.')
-            expected_lock = key.get_public_key().get_address(compressed=compressed).to_script_pub_key().to_hex()
+            if native and not compressed:
+                raise ValueError(f'Input {i + 1}: the native P2WPKH lesson requires a compressed public key.')
+            expected_address = key.get_public_key().get_segwit_address() if native else key.get_public_key().get_address(compressed=compressed)
+            expected_lock = expected_address.to_script_pub_key().to_hex()
             if expected_lock != previous_scripts[i]:
-                raise ValueError(f'Input {i + 1}: the private key and public-key format do not match the previous P2PKH lock.')
+                raise ValueError(f'Input {i + 1}: the private key and public-key format do not match the previous {spend_type.upper()} lock.')
             keys.append((key_hex, compressed))
         signing = dict(unsignedHex=namespace['raw_hex'], unsignedBytes=len(bytes.fromhex(namespace['raw_hex'])),
                        unsignedTxid=namespace['tx'].get_txid(), inputs=[])
@@ -588,11 +614,20 @@ def trace_transaction(request):
                     f'digest_{i} = tx.get_transaction_digest({i}, previous_script_{i}, {mode_code})\n'
                     f'signature_{i} = key_{i}.sign_input(tx, {i}, previous_script_{i}, {mode_code})\n'
                     f'tx.inputs[{i}].script_sig = Script([signature_{i}, public_key_{i}])')
+            if native:
+                code = (f'key_{i} = PrivateKey.from_bytes(bytes.fromhex({key_hex!r}))\n'
+                        f'public_key_{i} = key_{i}.get_public_key().to_hex(compressed=True)\n'
+                        f'assert key_{i}.get_public_key().get_segwit_address().to_script_pub_key().to_hex() == previous_script_{i}.to_hex()\n'
+                        f'tx.has_segwit = True\n'
+                        f'digest_{i} = tx.get_transaction_segwit_digest({i}, script_code_{i}, previous_amount_{i}, {mode_code})\n'
+                        f'signature_{i} = key_{i}.sign_segwit_input(tx, {i}, script_code_{i}, previous_amount_{i}, {mode_code})\n'
+                        f'tx.set_witness({i}, TxWitnessInput([signature_{i}, public_key_{i}]))')
             exec(code, namespace)
             signing_codes.append(code)
             signing['inputs'].append(dict(digest=namespace[f'digest_{i}'].hex(), signature=namespace[f'signature_{i}'],
                                           publicKey=namespace[f'public_key_{i}'], scriptSig=namespace['tx'].inputs[i].script_sig.to_hex(), python=code,
-                                          sighashType=mode, sighashName=SIGHASH_NAMES[mode]))
+                                          sighashType=mode, sighashName=SIGHASH_NAMES[mode],
+                                          witness=list(namespace['tx'].witnesses[i].stack) if native else []))
         final_code = 'raw_hex = tx.serialize()\ntxid = tx.get_txid()'
         exec(final_code, namespace)
         snippets.extend(signing_codes + [final_code])
@@ -606,13 +641,16 @@ def trace_transaction(request):
                            category=category, description=description, python=python))
         offset += size
 
-    field('Version', 4, 'header', 'Version 2, stored as a four-byte little-endian integer. This is a legacy serialization without witness.', constructor)
+    field('Version', 4, 'header', 'Version 2, stored as a four-byte little-endian integer.', constructor)
+    if native and signing:
+        field('SegWit marker', 1, 'witness', '00 marks the extended serialization. Marker and flag are omitted when calculating the TXID.', signing_codes[0])
+        field('SegWit flag', 1, 'witness', '01 indicates witness data follows the outputs. The WTXID includes this serialization.', signing_codes[0])
     field('Input count', len(encode_varint(len(inputs))), 'count', f'{len(inputs)} inputs, encoded as CompactSize. This is a count, not a byte length.', constructor)
     for i, row in enumerate(inputs):
         prefix, code = f'Input {i + 1} · ', snippets[i]
         field(prefix + 'previous TXID', 32, 'outpoint', 'The previous transaction ID in internal byte order: the reverse of the byte pairs entered in display order.', code)
         field(prefix + 'output index', 4, 'index', f'Output {int(row["vout"])} of that previous transaction, numbered from zero. Four bytes, little-endian.', code)
-        if signing:
+        if signing and not native:
             signed_input = signing['inputs'][i]
             script_size = len(bytes.fromhex(signed_input['scriptSig']))
             sig_size = len(bytes.fromhex(signed_input['signature']))
@@ -626,21 +664,38 @@ def trace_transaction(request):
             field(prefix + 'public key', pub_size, 'script', 'The revealed public key. Its HASH160 must match the previous P2PKH locking script, and the signature must verify against it.', sign_code)
         else:
             field(prefix + 'scriptSig length', 1, 'count', '00 means zero script bytes follow. It is a length prefix, not an OP_0 inside scriptSig.', code)
-            field(prefix + 'empty scriptSig', 0, 'script', 'No bytes yet. Signing a P2PKH input adds a signature and public key here. The previous locking script does not belong here.', code)
+            field(prefix + 'empty scriptSig', 0, 'script', 'Native P2WPKH requires an empty scriptSig. The signature and public key go in this input’s witness stack.' if native else 'No bytes yet. Signing a P2PKH input adds a signature and public key here. The previous locking script does not belong here.', code)
         field(prefix + 'sequence', 4, 'sequence', 'ffffffff is the final sequence value. With locktime zero, this example has no transaction locktime delay.', code)
     field('Output count', len(encode_varint(len(outputs))), 'count', f'{len(outputs)} outputs, encoded as CompactSize.', constructor)
     for i, amount in enumerate(out_amounts):
         code = snippets[len(inputs) + i]
         field(f'Output {i + 1} · amount', 8, 'amount', f'{amount:,} satoshis, encoded as an eight-byte little-endian integer. Addresses and BTC decimal strings are not serialized.', code)
-        field(f'Output {i + 1} · script length', 1, 'count', '19 hexadecimal is 25 decimal: the length of the P2PKH locking script in bytes.', code)
-        field(f'Output {i + 1} · locking script', 25, 'script', 'OP_DUP OP_HASH160 <20-byte public-key hash> OP_EQUALVERIFY OP_CHECKSIG. This is the new output’s spending condition.', code)
+        field(f'Output {i + 1} · script length', 1, 'count', f'{script_size_expected:02x} hexadecimal is {script_size_expected} decimal: the length of the {spend_type.upper()} locking script in bytes.', code)
+        field(f'Output {i + 1} · locking script', script_size_expected, 'script', 'OP_0 followed by a 20-byte public-key hash: a native version-0 witness program.' if native else 'OP_DUP OP_HASH160 <20-byte public-key hash> OP_EQUALVERIFY OP_CHECKSIG. This is the new output’s spending condition.', code)
+    if native and signing:
+        for i, signed_input in enumerate(signing['inputs']):
+            code = signing_codes[i]
+            sig_size = len(bytes.fromhex(signed_input['signature']))
+            pub_size = len(bytes.fromhex(signed_input['publicKey']))
+            prefix = f'Input {i + 1} witness · '
+            field(prefix + 'item count', 1, 'witness', 'Two witness stack items: signature and compressed public key. Witness is a list of byte strings, not a script.', code)
+            field(prefix + 'signature length', len(encode_varint(sig_size)), 'count', f'{sig_size} bytes follow. This is CompactSize, not a script push opcode.', code)
+            field(prefix + 'DER signature', sig_size - 1, 'signature', 'ECDSA signature of the BIP143 digest. The following SIGHASH byte is separate from DER.', code)
+            field(prefix + 'sighash type', 1, 'header', f'{signed_input["sighashType"]:02x} selects {signed_input["sighashName"]}.', code)
+            field(prefix + 'public-key length', len(encode_varint(pub_size)), 'count', f'{pub_size} bytes of SEC public key follow.', code)
+            field(prefix + 'public key', pub_size, 'witness', 'The compressed public key must match the 20-byte witness program.', code)
     field('Locktime', 4, 'header', 'Zero: no absolute locktime constraint. Four bytes, little-endian.', constructor)
     assert offset == len(raw), 'Transaction annotations must cover the library serialization exactly.'
     python = preamble + '\n\n' + '\n\n'.join(snippets) + '\nprint(raw_hex)'
     step = dict(id='transaction', hex=raw.hex(), byteLength=len(raw), fields=fields, python=constructor)
+    tx = namespace['tx']
+    base_size = len(tx.to_bytes(False))
     return dict(network=network, compressed=True, publicKey='', address='', steps=[step], pythonPreamble=preamble,
-                transaction=dict(totalInput=total_in, totalOutput=total_out, fee=total_in - total_out,
-                                 previousScripts=previous_scripts, fields=fields, python=python, **({'signing': signing} if signing else {})))
+                transaction=dict(spendType=spend_type, hasWitness=tx.has_segwit, txid=tx.get_txid(), wtxid=tx.get_wtxid(),
+                                 baseSize=base_size, totalSize=tx.get_size(), weight=base_size * 3 + tx.get_size(), vsize=tx.get_vsize(),
+                                 totalInput=total_in, totalOutput=total_out, fee=total_in - total_out,
+                                 previousScripts=previous_scripts, previousAmounts=amounts, scriptCodes=script_codes,
+                                 fields=fields, python=python, **({'signing': signing} if signing else {})))
 
 
 def trace_candidate(request):
@@ -666,11 +721,14 @@ def trace_candidate(request):
         bytes.fromhex(signed_hex)
     except ValueError:
         raise ValueError('Supply a signed transaction in hexadecimal.') from None
+    from bitcoinutils.transactions import Transaction
+    if Transaction.from_raw(signed_hex).has_segwit:
+        raise ValueError('The candidate lesson adapter currently accepts legacy transactions only. The local SegWit commitment helper has not been connected to this screen yet.')
     code = ("from bitcoinutils.setup import setup\n"
             "from bitcoinutils.keys import PublicKey\n"
             "from bitcoinutils.script import Script\n"
             "from bitcoinutils.transactions import Transaction, TxInput, TxOutput\n"
-            "from bitcoinutils.learning import create_coinbase_transaction, get_block_subsidy, trace_merkle_root\n\n"
+            "from bitcoin_education import create_coinbase_transaction, get_block_subsidy, trace_merkle_root\n\n"
             f"network = {network!r}\nheight = {height}\nbudget = {budget}\ninclude = {include}\n"
             f"your_fee = {fee}\nyour_tx = Transaction.from_raw({signed_hex!r})\n"
             "setup(network)\n"
@@ -767,7 +825,7 @@ def trace_execution(request):
     }
     if experiment not in edits:
         raise ValueError('Choose an available experiment.')
-    code = ("from bitcoinutils.transactions import Transaction\nfrom bitcoinutils.script import Script\nfrom bitcoinutils.keys import PrivateKey\nfrom bitcoinutils.learning import trace_p2pkh_input\n\n"
+    code = ("from bitcoinutils.transactions import Transaction\nfrom bitcoinutils.script import Script\nfrom bitcoinutils.keys import PrivateKey\nfrom bitcoin_education import trace_p2pkh_input\n\n"
             f"tx = Transaction.from_raw({options['hex']!r})\nindex = {index}\nprevious_script = Script.from_raw({options['previousScript']!r})\n"
             + edits[experiment] + "\nresult = trace_p2pkh_input(tx, index, previous_script)")
     namespace = {}

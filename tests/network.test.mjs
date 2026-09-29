@@ -95,3 +95,12 @@ test('reset recreates a clean starting world without changing existing state', (
   assert.equal(settled.nodes.A, 'accepted');
   assert.equal(settled.competitors, 1);
 });
+
+test('modern relay uses WTXIDs and carries witness bytes without changing the shared network model', () => {
+  const legacy = finish();
+  const native = finish({ ...defaults, relayByWtxid: true, withWitness: true });
+  assert.deepEqual(native.nodes, legacy.nodes);
+  assert.deepEqual(native.logs.map(log => log.event), legacy.logs.map(log => log.event));
+  assert.ok(native.logs.some(log => log.text.includes('inv, MSG_WTX') && log.text.includes('getdata, MSG_WTX')));
+  assert.ok(native.logs.filter(log => log.event.kind === 'receive').every(log => log.text.includes('including witness data')));
+});

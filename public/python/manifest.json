@@ -1,0 +1,11 @@
+{
+  "files": [
+    "lesson_adapter.py",
+    "bitcoin_education/__init__.py",
+    "bitcoin_education/block.py",
+    "bitcoin_education/p2pkh.py",
+    "bitcoin_education/p2wpkh.py",
+    "bitcoin_education/segwit_block.py",
+    "bitcoin_education/sighash.py"
+  ]
+}
