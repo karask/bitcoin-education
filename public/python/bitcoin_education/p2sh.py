@@ -101,13 +101,37 @@ def trace_p2sh_input(transaction, input_index, previous_script_pubkey):
     result.update(required=required, public_keys=keys)
     # BIP16 restores the stack saved after scriptSig, then removes its script.
     record('P2SH validation', 'RESTORE_STACK', lambda: stack.__setitem__(slice(None), saved[:-1]))
+    return _trace_multisig_script(transaction, input_index, redeem, required, keys, stack, steps, result)
+
+
+def _trace_multisig_script(transaction, input_index, redeem, required, keys, stack, steps, result, amount=None):
+    """Shared scoped CHECKMULTISIG engine; SegWit uses the same rule with BIP143."""
+    phase = 'witnessScript' if amount is not None else 'redeemScript'
+
+    def finish(error=None):
+        if amount is not None:
+            result['clean_stack'] = error is None and stack == [b'\x01']
+        return dict(result, success=error is None, steps=steps,
+                    final_stack=[value.hex() for value in stack], error=error)
+
+    def fail(code, message):
+        if steps:
+            steps[-1]['error'] = message
+        return finish(dict(code=code, message=message))
+
+    def record(phase, instruction, operation, **extra):
+        before = [value.hex() for value in stack]
+        operation()
+        steps.append(dict(phase=phase, instruction=instruction, stack_before=before,
+                          stack_after=[value.hex() for value in stack], error=None, **extra))
+
     if len(stack) != required + 1:
         return fail('SIGNATURE_COUNT', f'This teaching example requires an empty dummy and exactly {required} signatures.')
     signatures, dummy = list(stack[1:]), stack[0]
-    record('redeemScript', f'OP_{required}', lambda: stack.append(bytes([required])))
+    record(phase, f'OP_{required}', lambda: stack.append(bytes([required])))
     for key in keys:
-        record('redeemScript', 'PUSH_PUBLIC_KEY', lambda: stack.append(bytes.fromhex(key)))
-    record('redeemScript', 'OP_3', lambda: stack.append(b'\x03'))
+        record(phase, 'PUSH_PUBLIC_KEY', lambda: stack.append(bytes.fromhex(key)))
+    record(phase, 'OP_3', lambda: stack.append(b'\x03'))
     checks = []
     next_key, valid = 0, True
     for signature_index, signature in enumerate(signatures):
@@ -116,15 +140,19 @@ def trace_p2sh_input(transaction, input_index, previous_script_pubkey):
             break
         mode = signature[-1]
         if mode not in MODES:
-            record('redeemScript', 'OP_CHECKMULTISIG', lambda: None)
+            record(phase, 'OP_CHECKMULTISIG', lambda: None)
             return fail('UNSUPPORTED_SIGHASH', 'Use ALL, NONE, SINGLE, or an ANYONECANPAY variant.')
-        digest = transaction.get_transaction_digest(input_index, redeem, mode)
+        if amount is None:
+            digest = transaction.get_transaction_digest(input_index, redeem, mode)
+        else:
+            from bitcoin_education.sighash import trace_segwit_v0_sighash
+            digest = bytes.fromhex(trace_segwit_v0_sighash(transaction, input_index, redeem, amount, mode)['digest'])
         result['sighash'] = MODES[mode]
         try:
             # Verify DER structure before treating a mathematically wrong signature as false.
             sigdecode_der(signature[:-1], PublicKey(keys[0]).key.curve.order)
         except (UnexpectedDER, ValueError, IndexError, TypeError) as error:
-            record('redeemScript', 'OP_CHECKMULTISIG', lambda: None)
+            record(phase, 'OP_CHECKMULTISIG', lambda: None)
             return fail('INVALID_DER_SIGNATURE', str(error))
         matched = False
         while next_key < len(keys):
@@ -145,10 +173,10 @@ def trace_p2sh_input(transaction, input_index, previous_script_pubkey):
             break
     result['checks'] = checks
     if dummy:
-        record('redeemScript', 'OP_CHECKMULTISIG', lambda: None, checks=checks)
+        record(phase, 'OP_CHECKMULTISIG', lambda: None, checks=checks)
         return fail('NULLDUMMY', 'CHECKMULTISIG consumes an extra dummy item, which must be empty bytes.')
-    record('redeemScript', 'OP_CHECKMULTISIG', lambda: stack.__setitem__(slice(None), [b'\x01' if valid else b'']),
+    record(phase, 'OP_CHECKMULTISIG', lambda: stack.__setitem__(slice(None), [b'\x01' if valid else b'']),
            checks=checks, signature_valid=valid, **({'digest': checks[0]['digest']} if checks else {}))
     if not valid:
-        return fail('CHECKMULTISIG_FAILED', 'The signatures do not satisfy the redeem script in public-key order.')
+        return fail('CHECKMULTISIG_FAILED', f'The signatures do not satisfy the {"witness" if amount is not None else "redeem"} script in public-key order.')
     return finish()

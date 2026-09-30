@@ -3,7 +3,7 @@ export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
 export type TransactionPage = 'transaction' | 'signing' | 'execution' | 'propagation' | 'construction' | 'mining' | 'blocks';
 export type LessonKind = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
-export type SpendType = 'p2pkh' | 'p2sh' | 'p2wpkh';
+export type SpendType = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested';
 export type SighashType = 1 | 2 | 3 | 129 | 130 | 131;
 export interface Bip143Trace {
   fields: { name: string; start: number; end: number; size: number; hex: string }[];
@@ -43,7 +43,7 @@ export interface MiningResult {
 
 export interface TransactionDraft {
   spendType?: SpendType;
-  inputs: { txid: string; vout: string; amount: string; source: string; sourceType: 'address' | 'script'; privateKey?: string; compressed?: boolean; sighashType?: SighashType; redeemScript?: string; signerKeys?: string[] }[];
+  inputs: { txid: string; vout: string; amount: string; source: string; sourceType: 'address' | 'script'; privateKey?: string; compressed?: boolean; sighashType?: SighashType; redeemScript?: string; witnessScript?: string; signerKeys?: string[] }[];
   outputs: { address: string; amount: string }[];
 }
 export interface TransactionResult {
@@ -56,7 +56,7 @@ export interface TransactionResult {
   python: string;
   signing?: {
     unsignedHex: string; unsignedTxid: string; txid: string; unsignedBytes: number;
-    inputs: { signatures?: string[]; publicKeys?: string[]; signerIndexes?: number[]; redeemScript?: string; required?: number; digest: string; signature: string; publicKey: string; scriptSig: string; witness: string[]; python: string; sighashType: SighashType; sighashName: string }[];
+    inputs: { signatures?: string[]; publicKeys?: string[]; signerIndexes?: number[]; redeemScript?: string; witnessScript?: string; required?: number; digest: string; signature: string; publicKey: string; scriptSig: string; witness: string[]; python: string; sighashType: SighashType; sighashName: string }[];
   };
 }
 
@@ -98,7 +98,7 @@ export interface StepResult {
 }
 
 export interface LessonTrace {
-  execution?: { success: boolean; final_stack: string[]; error: {code: string; message: string} | null; python: string; sighash: string | null; redeem_script?: string; required?: number; public_keys?: string[]; checks?: { signature: number; publicKey: number; digest: string; sighash: string; valid: boolean }[]; amount?: number; witness_program?: string; script_code?: string; clean_stack?: boolean; steps: {phase: string; instruction: string; kind?: string; stack_before: string[]; stack_after: string[]; error: string | null; digest?: string; signature_valid?: boolean; checks?: { signature: number; publicKey: number; digest: string; sighash: string; valid: boolean }[]}[] };
+  execution?: { success: boolean; final_stack: string[]; error: {code: string; message: string} | null; python: string; sighash: string | null; redeem_script?: string; witness_script?: string; required?: number; public_keys?: string[]; checks?: { signature: number; publicKey: number; digest: string; sighash: string; valid: boolean }[]; amount?: number; witness_program?: string; script_code?: string; clean_stack?: boolean; steps: {phase: string; instruction: string; kind?: string; stack_before: string[]; stack_after: string[]; error: string | null; digest?: string; signature_valid?: boolean; checks?: { signature: number; publicKey: number; digest: string; sighash: string; valid: boolean }[]}[] };
   mining?: MiningResult;
   candidate?: CandidateResult;
   transaction?: TransactionResult;

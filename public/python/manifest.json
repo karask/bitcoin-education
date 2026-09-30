@@ -6,6 +6,8 @@
     "bitcoin_education/p2pkh.py",
     "bitcoin_education/p2sh.py",
     "bitcoin_education/p2wpkh.py",
+    "bitcoin_education/p2wsh.py",
+    "bitcoin_education/nested.py",
     "bitcoin_education/segwit_block.py",
     "bitcoin_education/sighash.py"
   ]

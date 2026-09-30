@@ -113,10 +113,10 @@
 .tx-sighash-compat { padding: 12px 14px; border-left: 2px solid var(--accent); background: var(--accent-soft); }
 
 
-.tx-spend-selector { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 14px 24px; padding: 22px; margin: 22px 0 30px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tx-spend-selector { display: grid; grid-template-columns: 1fr; align-items: center; gap: 14px 24px; padding: 22px; margin: 22px 0 30px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .tx-spend-selector p { margin: 7px 0 0; color: var(--secondary); font-size: 12px; line-height: 1.6; }
 .tx-spend-selector > small { grid-column: 1 / -1; color: var(--muted); font-size: 11px; }
-.tx-spend-options { display: flex; gap: 8px; }
+.tx-spend-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 8px; }
 .tx-spend-options button { display: grid; gap: 6px; padding: 14px 18px; text-align: left; background: var(--inset); border: 1px solid var(--line); border-radius: 8px; color: var(--text); cursor: pointer; }
 .tx-spend-options button strong { font-size: 12px; font-weight: 500; }
 .tx-spend-options button span { font-size: 10px; color: var(--muted); }
@@ -144,7 +144,7 @@
 }
 @media (max-width: 500px) {
   .tx-spend-selector { padding: 16px; }
-  .tx-spend-options { flex-direction: column; }
+  .tx-spend-options { grid-template-columns: 1fr; }
 }
 
 .tx-entry textarea { width: 100%; resize: vertical; font: 11px/1.8 'JetBrains Mono', monospace; overflow-wrap: anywhere; }

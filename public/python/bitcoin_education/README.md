@@ -65,8 +65,8 @@ the BIP143 signing digest, so the original signature will fail. The selected
 input must have an empty scriptSig and a witness containing exactly a DER
 signature with a supported sighash byte and a compressed SEC public key.
 The scope is native P2WPKH with BIP143 `ALL`, `NONE`, `SINGLE`, and each
-combined with `ANYONECANPAY`. P2SH wrapping, P2WSH, Taproot, other sighash
-modes, and uncompressed keys are explicitly unsupported.
+combined with `ANYONECANPAY`. P2SH wrapping and P2WSH use the separate helpers below. Taproot, other sighash
+modes, and uncompressed keys are unsupported by this P2WPKH helper.
 The compressed-key restriction follows default policy; it is not presented as
 a consensus rule. This helper does not enforce low-S or NULLFAIL policy.
 
@@ -100,6 +100,40 @@ the resulting shorter list with `WITNESS_COUNT_MISMATCH` rather than assigning
 a witness to the wrong input. Construct mixed transactions with explicit slots
 (or `set_witness` on a freshly constructed transaction). Transactions with
 P2WPKH witnesses for every input can be parsed and traced directly.
+
+## P2WSH multisig and P2SH-P2WPKH execution
+
+```python
+from bitcoin_education import trace_p2wsh_input, trace_nested_p2wpkh_input
+
+wsh = trace_p2wsh_input(transaction, 0, previous_p2wsh_lock, amount=100_000)
+nested = trace_nested_p2wpkh_input(transaction, 0, previous_p2sh_lock, amount=100_000)
+```
+
+Use the matching helper for your transaction. Both support six BIP143 modes,
+require aligned witness slots, expose `amount`, `script_code`, `witness_program`,
+and `clean_stack`, and leave caller objects unchanged. P2WSH supports the same
+canonical compressed-key m-of-3 rule as P2SH. It checks SHA256 of the last witness
+item (`CHECK_WITNESS_SCRIPT_HASH`, a validation check, not an opcode), then loads
+only preceding items (`LOAD_DUMMY`, `LOAD_SIGNATURE`) and executes the script.
+`witness_script`, `required`, `public_keys`, and `checks` expose the rule and
+ordered signature attempts. A successful stack contains exactly `01`.
+
+Nested supports P2SH-P2WPKH only. It checks a scriptSig containing one pushed
+22-byte redeem program, traces the outer HASH160/EQUAL, and selects SegWit
+validation (`SELECT_WITNESS_PROGRAM`, not an opcode). The signature and key
+are loaded from witness and checked by the implied P2PKH script with BIP143.
+`redeem_script` contains the program; `script_code` contains the distinct
+P2PKH-style signing script. The core Script parser normalizes raw pushes, so
+this object trace does not establish byte-level push canonicality.
+
+These are scoped teaching evaluators; other scripts, low-S/NULLFAIL policy,
+full node consensus, and on-chain UTXOs/amounts remain outside their scope.
+
+`bitcoin_education.p2wsh.p2wsh_address_to_script(address)` uses core Bech32 to
+validate the current network, version zero, and 32-byte program. It works around
+the pinned 0.8.7 P2wshAddress constructor dropping its address argument. The
+website's copied construction examples import it explicitly.
 
 ## BIP143 preimage explorer
 

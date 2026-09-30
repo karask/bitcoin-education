@@ -31,7 +31,7 @@ export function SighashExplorer({ index, mode, native, multisig, outputCount, ex
           <div><span>Input outpoints</span><strong>{preview.inputScope}</strong></div>
           <div><span>Input sequences</span><strong>{preview.sequenceScope}</strong></div>
           <div><span>Output amounts + locking scripts</span><strong>{preview.outputScope}</strong></div>
-          <div><span>Current input’s scriptCode</span><strong>{native ? 'P2PKH-style script from the witness program' : multisig ? 'Revealed multisig redeem script' : 'Previous locking script'}</strong></div>
+          <div><span>Current input’s scriptCode</span><strong>{native ? multisig ? 'Revealed multisig witness script' : 'P2PKH-style script from the witness program' : multisig ? 'Revealed multisig redeem script' : 'Previous locking script'}</strong></div>
           <div><span>Previous input amounts</span><strong>{preview.amountScope}</strong></div>
         </div>
         <p className="tx-sighash-note">{native

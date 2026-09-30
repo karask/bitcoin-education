@@ -3,7 +3,7 @@
 A local, browser-native Bitcoin learning lab. Seven address lessons cover legacy,
 script-hash, SegWit, nested SegWit, Taproot, and address comparisons with real
 Python, synchronized pseudocode, and annotated bytes. Both light and dark themes
-are included. A transaction lab builds and signs P2PKH, P2SH multisig, and native P2WPKH transactions from editable
+are included. A transaction lab builds and signs P2PKH, P2SH multisig, native P2WPKH, native P2WSH multisig, and P2SH-P2WPKH transactions from editable
 UTXOs and outputs, with a field-by-field hex explorer and runnable Python.
 
 ## Learning path
@@ -21,7 +21,7 @@ Append a lesson fragment to `/bitcoin-education/`:
 | `#compare` | Six address constructions and locking scripts from one key |
 | `#transaction` | Transaction anatomy: UTXOs, outputs, fees, unsigned bytes |
 | `#signing` | Legacy/BIP143 digests, signatures, scriptSigs/witnesses, signed bytes |
-| `#execution` | P2PKH, P2SH multisig, and P2WPKH stack traces and failure experiments |
+| `#execution` | Five spending examples with stack traces and failure experiments |
 | `#propagation` | Node relay and separate local mempools |
 | `#construction` | Candidate selection, BIP34 coinbase, Merkle tree |
 | `#mining` | Candidate-root header hashing and nonce attempts |
@@ -34,17 +34,17 @@ their common one-key input explicit rather than silently adding multisig keys.
 
 The transaction lab accepts 1–20 inputs and outputs, integer satoshi amounts,
 and mainnet or testnet addresses matching the selected spend example. Previous
-locks can also be supplied as standard P2PKH, P2SH, or P2WPKH script hex. Each example
+locks can also be supplied as standard P2PKH, P2SH, P2WPKH, or P2WSH script hex. Each example
 uses the same type for its outputs; mixed input/output types are not exposed yet. UTXO existence and unspent status are not checked.
 The example outpoint is fictional. Version 2, final sequences, zero locktime,
 and initially empty scriptSigs keep the construction focused on transaction structure.
 Previous amounts and scripts are metadata, not serialized input fields. Fees
 use supplied amounts; unsigned byte size is not a signed fee-rate estimate.
 
-The signing action uses `PrivateKey.sign_input` for P2PKH or `sign_segwit_input`
-for native P2WPKH. SIGHASH_ALL is the default. A collapsed explorer before signing
+The signing action uses `PrivateKey.sign_input` for legacy P2PKH/P2SH or `sign_segwit_input`
+for all three SegWit examples. SIGHASH_ALL is the default. A collapsed explorer before signing
 lets each input choose ALL, NONE, SINGLE, or any of those with ANYONECANPAY,
-and shows the committed fields and actual library digest. All three examples expose
+and shows the committed fields and actual library digest. All five examples expose
 the exact signing preimage. The native explorer shows
 ordered BIP143 byte fields, the three component hashes and their serialized
 inputs, and which components are zero by the selected SIGHASH rule.
@@ -61,22 +61,22 @@ until witness data is added. Tests independently construct all six BIP143 and
 legacy preimages, verify ECDSA signatures, strip witness serialization, and
 check IDs and weight/vsize. Browser Python is compared with CPython.
 
-Script execution uses the project-local `bitcoin_education.trace_p2pkh_input`
-and `trace_p2wpkh_input` inside the browser worker, built on the core
+Script execution uses the project-local `bitcoin_education.trace_p2pkh_input`, `trace_p2sh_input`,
+`trace_p2wpkh_input`, `trace_p2wsh_input`, and `trace_nested_p2wpkh_input` inside the browser worker, built on the core
 `bitcoin-utils` APIs. Select an input and step through or play its instructions
 with before/after stacks and the CHECKSIG digest. Native execution loads the
 witness as stack data, then executes the implied P2PKH scriptCode using BIP143
 and the supplied previous amount. Its verdict includes the clean-stack check.
 Experiments change a public key, signature byte, or output on a separate copy;
 native also offers a wrong-amount experiment. Output edits respect the selected
-SIGHASH scope. Legacy execution supports SIGHASH_ALL; native supports all six
+SIGHASH scope. Legacy P2PKH execution supports SIGHASH_ALL; P2SH and all SegWit examples support all six
 exposed modes, including SINGLE without a corresponding output. Compressed
 keys are a scope/default-policy restriction for the native tracer; low-S and
 NULLFAIL checks are not implemented. Neither evaluator provides full node
 validation, on-chain UTXO checks, or broadcasting.
 
-One set of seven transaction menu items serves all three spend examples. A compact
-selector follows Addresses order: Legacy P2PKH → P2SH multisig → Native P2WPKH while preserving each
+One set of seven transaction menu items serves all five spend examples. A compact
+selector follows Addresses order: Legacy P2PKH → P2SH multisig → Native P2WPKH → Native P2WSH → Nested SegWit while preserving each
 example’s in-memory draft and results, including across address lessons. Next-step
 links connect Anatomy → Signing → Script execution → Propagation → Block construction → Mining → Block propagation.
 Directly opening a later
@@ -86,7 +86,7 @@ In Propagation, play or step through modeled announcements,
 requests, receipts, and admission. Select any of five nodes to inspect its own
 mempool; change C's illustrative fee threshold, remove a referenced output at
 C, or disconnect E. Added fee competition affects only the selected snapshot.
-All three examples use the same relay diagram and mempool model. The scene uses
+All five examples use the same relay diagram and mempool model. The scene uses
 actual TXID/WTXID, signed bytes (including witnesses), virtual size, assumed
 starting UTXOs, and explicitly modeled validation. Connections are assumed to
 have negotiated BIP339 wtxidrelay; inv/getdata use MSG_WTX. No real network broadcast takes place, and the
@@ -109,7 +109,7 @@ The native block relay explains compact-block version 2, WTXID-based short IDs,
 witness-bearing transaction delivery, and modeled witness-commitment checks.
 The complete former library learning package, including newer native helpers,
 now lives in `public/python/bitcoin_education`. Its tests and MIT license moved
-with it. All three spend examples connect Anatomy → Signing → Script execution →
+with it. All five spend examples connect Anatomy → Signing → Script execution →
 Propagation → Block construction → Mining → Block propagation. The native
 execution, exact-preimage, and witness-commitment screens use these local APIs,
 without requiring a library release.
@@ -143,6 +143,37 @@ output, signature order/count, or the dummy. The complete journey continues
 through modeled relay, candidate selection, the TXID tree, mining, and block
 confirmations. P2SH is a script-hash wrapper; multisig is this lesson's selected
 rule, and other redeem scripts are outside the evaluator's scope.
+
+## P2WSH and Nested SegWit transaction journeys
+
+The next two examples complete the same seven stages in Addresses order.
+P2WSH reuses the canonical m-of-3 rule: the previous output is
+`0020<SHA256(witnessScript)>`. The native scriptSig stays empty. Witness items
+are an empty CHECKMULTISIG dummy, signatures in script key order, and the
+105-byte witness script. Item lengths are CompactSize; the script is not an
+OP_PUSHDATA1 push. BIP143 signs the witness script as scriptCode and the
+current previous amount. Witness changes preserve TXID and change WTXID.
+
+Nested SegWit follows the Addresses example, **P2SH-P2WPKH**. The outer P2SH
+output commits to HASH160 of `0014<key hash>`. Signing fills the initially empty
+scriptSig with exactly one push of that 22-byte redeem program (23 script bytes),
+and puts the signature and compressed public key in witness. Adding the program
+changes the unsigned draft's TXID; subsequent witness-only changes preserve it.
+BIP143 uses the implied P2PKH-style scriptCode, not the outer script or program.
+
+Both include six signature modes and exact preimages, per-input execution,
+amount and output experiments, relay using WTXID, virtual-size selection,
+witness commitments, and the candidate-root mining and confirmation models.
+P2WSH adds signature order/count and dummy experiments; Nested adds altered
+redeem-program and extra-scriptSig-item failures. Helpers are deliberately
+scoped; the object-based nested trace does not establish raw push canonicality.
+Independent tests cover wire bytes, preimages, ECDSA, IDs/weight, all signer
+subsets, input alignment, clean stacks, omission, and both Merkle commitments.
+
+The pinned core `P2wshAddress` constructor ignores its `address` argument.
+The local `p2wsh_address_to_script` uses the core Bech32 decoder with explicit
+network/version/32-byte checks. Copied Python includes this helper; the library
+wheel remains intact. See [model boundaries](LIBRARY_GAPS.md).
 
 ## Start locally
 

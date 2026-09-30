@@ -416,7 +416,7 @@ def selected_sighash(row, index, output_count, spend_type="p2pkh"):
     value = row.get('sighashType', 1)
     if type(value) is not int or value not in SIGHASH_NAMES:
         raise ValueError(f'Input {index + 1}: choose a supported SIGHASH mode.')
-    if spend_type != "p2wpkh" and value & 0x1f == 3 and index >= output_count:
+    if spend_type not in ("p2wpkh", "p2wsh", "nested") and value & 0x1f == 3 and index >= output_count:
         raise ValueError(f'Input {index + 1}: SIGHASH_SINGLE needs output {index + 1}; add that output or choose another mode.')
     return value
 
@@ -435,7 +435,7 @@ def trace_sighash(request):
     for index, row in enumerate(rows):
         mode = selected_sighash(row, index, len(outputs), spend_type)
         script = Script.from_raw(unsigned['transaction']['scriptCodes'][index])
-        if spend_type == 'p2wpkh':
+        if spend_type in ('p2wpkh', 'p2wsh', 'nested'):
             from bitcoin_education import trace_segwit_v0_sighash
             base, anyone = mode & 0x1f, bool(mode & SIGHASH_ANYONECANPAY)
             amount = unsigned['transaction']['previousAmounts'][index]
@@ -498,13 +498,16 @@ def trace_transaction(request):
     setup(network)
     draft = request.get('transaction', {})
     spend_type = draft.get('spendType', 'p2pkh')
-    if spend_type not in ('p2pkh', 'p2sh', 'p2wpkh'):
-        raise ValueError('Choose the P2PKH, P2SH, or native P2WPKH spend example.')
+    if spend_type not in ('p2pkh', 'p2sh', 'p2wpkh', 'p2wsh', 'nested'):
+        raise ValueError('Choose a supported transaction spend example.')
     native = spend_type == 'p2wpkh'
-    multisig = spend_type == 'p2sh'
-    address_type = P2wpkhAddress if native else P2shAddress if multisig else P2pkhAddress
+    wsh = spend_type == 'p2wsh'
+    nested = spend_type == 'nested'
+    segwit = native or wsh or nested
+    multisig = spend_type in ('p2sh', 'p2wsh')
+    address_type = P2wpkhAddress if native else P2wshAddress if wsh else P2shAddress if multisig or nested else P2pkhAddress
     address_class = address_type.__name__
-    script_size_expected = 22 if native else 23 if multisig else 25
+    script_size_expected = 22 if native else 34 if wsh else 23 if multisig or nested else 25
     inputs, outputs = draft.get('inputs', []), draft.get('outputs', [])
     if not isinstance(inputs, list) or not isinstance(outputs, list) or not (1 <= len(inputs) <= 20 and 1 <= len(outputs) <= 20):
         raise ValueError('Use between 1 and 20 inputs and outputs.')
@@ -520,18 +523,29 @@ def trace_transaction(request):
 
     def address_script(address, label):
         try:
-            script = address_type(address=address).to_script_pub_key()
+            if wsh:
+                from bitcoin_education.p2wsh import p2wsh_address_to_script
+                script = p2wsh_address_to_script(address)
+            else:
+                script = address_type(address=address).to_script_pub_key()
             if len(script.to_bytes()) != script_size_expected:
                 raise ValueError('Invalid public-key-hash script length')
             return script
         except (ValueError, TypeError, IndexError):
             raise ValueError(f'{label}: enter a valid {network} {spend_type.upper()} address with a correct checksum.') from None
 
-    preamble = ('from bitcoinutils.setup import setup\nfrom bitcoinutils.keys import P2pkhAddress, P2shAddress, P2wpkhAddress\n'
+    preamble = ('from bitcoinutils.setup import setup\nfrom bitcoinutils.keys import P2pkhAddress, P2shAddress, P2wpkhAddress, P2wshAddress\n'
                 'from bitcoinutils.script import Script\nfrom bitcoinutils.transactions import Transaction, TxInput, TxOutput, TxWitnessInput\n'
                 f'setup({network!r})')
     namespace = {}
     exec(preamble, namespace)
+    if wsh:
+        preamble += '\nfrom bitcoin_education.p2wsh import p2wsh_address_to_script'
+        exec('from bitcoin_education.p2wsh import p2wsh_address_to_script', namespace)
+
+    def address_code(address):
+        return f'p2wsh_address_to_script({address!r})' if wsh else f'{address_class}(address={address!r}).to_script_pub_key()'
+
     snippets, previous_scripts, script_codes, amounts, out_amounts = [], [], [], [], []
     seen = set()
     for i, row in enumerate(inputs):
@@ -547,27 +561,35 @@ def trace_transaction(request):
         source = str(row.get('source', '')).strip()
         if row.get('sourceType') == 'script':
             source = source.lower()
-            pattern = r'0014[0-9a-f]{40}' if native else r'a914[0-9a-f]{40}87' if multisig else r'76a914[0-9a-f]{40}88ac'
+            pattern = r'0014[0-9a-f]{40}' if native else r'0020[0-9a-f]{64}' if wsh else r'a914[0-9a-f]{40}87' if multisig or nested else r'76a914[0-9a-f]{40}88ac'
             if not re.fullmatch(pattern, source):
-                expected = '0014 + 20-byte hash' if native else 'a914 + 20-byte script hash + 87' if multisig else '76a914 + 20-byte hash + 88ac'
+                expected = '0014 + 20-byte hash' if native else '0020 + 32-byte script hash' if wsh else 'a914 + 20-byte script hash + 87' if multisig or nested else '76a914 + 20-byte hash + 88ac'
                 raise ValueError(f'{label}: use a standard {spend_type.upper()} script: {expected}.')
             script = Script.from_raw(source)
             source_code = f'Script.from_raw({source!r})'
         elif row.get('sourceType') == 'address':
             script = address_script(source, label)
-            source_code = f'{address_class}(address={source!r}).to_script_pub_key()'
+            source_code = address_code(source)
         else:
             raise ValueError(f'{label}: choose address or locking script.')
         if multisig:
             from bitcoin_education.p2sh import multisig_redeem_script
             try:
-                redeem, required, public_keys = multisig_redeem_script(row.get('redeemScript'))
+                redeem, required, public_keys = multisig_redeem_script(row.get('witnessScript' if wsh else 'redeemScript'))
             except ValueError as error:
                 raise ValueError(f'{label}: {error}') from None
+            expected_lock = redeem.to_p2wsh_script_pub_key() if wsh else redeem.to_p2sh_script_pub_key()
+            if expected_lock.to_hex() != script.to_hex():
+                raise ValueError(f'{label}: the {"witness" if wsh else "redeem"} script does not match the previous {spend_type.upper()} lock.')
+        if nested:
+            raw_redeem = str(row.get('redeemScript', '')).strip().lower()
+            if not re.fullmatch(r'0014[0-9a-f]{40}', raw_redeem):
+                raise ValueError(f'{label}: supply a 22-byte P2WPKH redeem program: 0014 + 20-byte key hash.')
+            redeem = Script.from_raw(raw_redeem)
             if redeem.to_p2sh_script_pub_key().to_hex() != script.to_hex():
-                raise ValueError(f'{label}: the redeem script does not match the previous P2SH lock.')
+                raise ValueError(f'{label}: the redeem program does not match the previous P2SH lock.')
         previous_scripts.append(script.to_hex())
-        script_codes.append(redeem.to_hex() if multisig else P2pkhAddress(hash160=script.to_hex()[4:]).to_script_pub_key().to_hex() if native else script.to_hex())
+        script_codes.append(redeem.to_hex() if multisig else P2pkhAddress(hash160=redeem.to_hex()[4:] if nested else script.to_hex()[4:]).to_script_pub_key().to_hex() if native or nested else script.to_hex())
         amounts.append(amount)
         snippets.append(f'# UTXO metadata: previous amount and lock are not serialized in this input.\n'
                         f'previous_amount_{i} = {amount}\nprevious_script_{i} = {source_code}\n'
@@ -578,7 +600,7 @@ def trace_transaction(request):
         address_script(address, f'Output {i + 1}')
         amount = integer(row.get('amount'), f'Output {i + 1} amount', maximum)
         out_amounts.append(amount)
-        snippets.append(f'output_{i} = TxOutput({amount}, {address_class}(address={address!r}).to_script_pub_key())')
+        snippets.append(f'output_{i} = TxOutput({amount}, {address_code(address)})')
     total_in, total_out = sum(amounts), sum(out_amounts)
     if total_in > maximum or total_out > maximum:
         raise ValueError('The total value cannot exceed 21 million BTC.')
@@ -608,7 +630,7 @@ def trace_transaction(request):
                     raise ValueError(f'Input {i + 1}: supply up to three learning signer keys.')
                 selected_keys = [item.strip().lower() for item in raw_keys if item.strip()]
                 if len(selected_keys) != required or len(set(selected_keys)) != required:
-                    raise ValueError(f'Input {i + 1}: supply exactly {required} distinct signer keys for this redeem script.')
+                    raise ValueError(f'Input {i + 1}: supply exactly {required} distinct signer keys for this spending script.')
                 ordered_keys = []
                 for key_hex in selected_keys:
                     try:
@@ -619,7 +641,7 @@ def trace_transaction(request):
                         if public_key not in public_keys:
                             raise ValueError()
                     except Exception:
-                        raise ValueError(f'Input {i + 1}: each signer must be a valid 32-byte private key for a redeem-script participant.') from None
+                        raise ValueError(f'Input {i + 1}: each signer must be a valid 32-byte private key for a spending-script participant.') from None
                     ordered_keys.append((public_keys.index(public_key), key_hex))
                 keys.append(sorted(ordered_keys))
                 continue
@@ -633,9 +655,10 @@ def trace_transaction(request):
             compressed = row.get('compressed', True)
             if not isinstance(compressed, bool):
                 raise ValueError(f'Input {i + 1}: choose compressed or uncompressed public-key format.')
-            if native and not compressed:
-                raise ValueError(f'Input {i + 1}: the native P2WPKH lesson requires a compressed public key.')
-            expected_address = key.get_public_key().get_segwit_address() if native else key.get_public_key().get_address(compressed=compressed)
+            if segwit and not compressed:
+                raise ValueError(f'Input {i + 1}: SegWit lessons require a compressed public key.')
+            expected_address = (P2shAddress(script=key.get_public_key().get_segwit_address().to_script_pub_key()) if nested else
+                                key.get_public_key().get_segwit_address() if native else key.get_public_key().get_address(compressed=compressed))
             expected_lock = expected_address.to_script_pub_key().to_hex()
             if expected_lock != previous_scripts[i]:
                 raise ValueError(f'Input {i + 1}: the private key and public-key format do not match the previous {spend_type.upper()} lock.')
@@ -649,19 +672,27 @@ def trace_transaction(request):
             mode = modes[i]
             mode_code = SIGHASH_NAMES[mode].replace(' | ANYONECANPAY', ' | SIGHASH_ANYONECANPAY')
             if multisig:
-                code = (f'assert script_code_{i}.to_p2sh_script_pub_key().to_hex() == previous_script_{i}.to_hex()\n'
-                        f'digest_{i} = tx.get_transaction_digest({i}, script_code_{i}, {mode_code})\n'
+                lock_method = 'to_p2wsh_script_pub_key' if wsh else 'to_p2sh_script_pub_key'
+                digest_call = (f'tx.get_transaction_segwit_digest({i}, script_code_{i}, previous_amount_{i}, {mode_code})' if wsh else
+                               f'tx.get_transaction_digest({i}, script_code_{i}, {mode_code})')
+                signature_call = (f'key.sign_segwit_input(tx, {i}, script_code_{i}, previous_amount_{i}, {mode_code})' if wsh else
+                                  f'key.sign_input(tx, {i}, script_code_{i}, {mode_code})')
+                placement = (f'tx.set_witness({i}, TxWitnessInput(["", *signatures_{i}, script_code_{i}.to_hex()]))' if wsh else
+                             f'tx.inputs[{i}].script_sig = Script(["OP_0", *signatures_{i}, script_code_{i}.to_hex()])')
+                code = (f'assert script_code_{i}.{lock_method}().to_hex() == previous_script_{i}.to_hex()\n'
+                        + ('tx.has_segwit = True\n' if wsh else '')
+                        + f'digest_{i} = {digest_call}\n'
                         f'signer_keys_{i} = [PrivateKey.from_bytes(bytes.fromhex(value)) for value in {[value for _, value in key_data]!r}]\n'
                         f'public_keys_{i} = [key.get_public_key().to_hex(compressed=True) for key in signer_keys_{i}]\n'
-                        f'signatures_{i} = [key.sign_input(tx, {i}, script_code_{i}, {mode_code}) for key in signer_keys_{i}]\n'
-                        f'tx.inputs[{i}].script_sig = Script(["OP_0", *signatures_{i}, script_code_{i}.to_hex()])')
+                        f'signatures_{i} = [{signature_call} for key in signer_keys_{i}]\n'
+                        + placement)
                 exec(code, namespace)
                 signing_codes.append(code)
                 signing['inputs'].append(dict(digest=namespace[f'digest_{i}'].hex(), signature=namespace[f'signatures_{i}'][0],
                     publicKey=namespace[f'public_keys_{i}'][0], signatures=namespace[f'signatures_{i}'],
                     publicKeys=namespace[f'public_keys_{i}'], signerIndexes=[position + 1 for position, _ in key_data],
-                    redeemScript=script_codes[i], required=len(key_data), scriptSig=namespace['tx'].inputs[i].script_sig.to_hex(),
-                    witness=[], python=code, sighashType=mode, sighashName=SIGHASH_NAMES[mode]))
+                    **({'witnessScript': script_codes[i]} if wsh else {'redeemScript': script_codes[i]}), required=len(key_data), scriptSig=namespace['tx'].inputs[i].script_sig.to_hex(),
+                    witness=list(namespace['tx'].witnesses[i].stack) if wsh else [], python=code, sighashType=mode, sighashName=SIGHASH_NAMES[mode]))
                 continue
             key_hex, compressed = key_data
             code = (f'key_{i} = PrivateKey.from_bytes(bytes.fromhex({key_hex!r}))\n'
@@ -670,20 +701,24 @@ def trace_transaction(request):
                     f'digest_{i} = tx.get_transaction_digest({i}, previous_script_{i}, {mode_code})\n'
                     f'signature_{i} = key_{i}.sign_input(tx, {i}, previous_script_{i}, {mode_code})\n'
                     f'tx.inputs[{i}].script_sig = Script([signature_{i}, public_key_{i}])')
-            if native:
+            if native or nested:
+                expected_lock_code = (f'P2shAddress(script=key_{i}.get_public_key().get_segwit_address().to_script_pub_key()).to_script_pub_key()' if nested else
+                                      f'key_{i}.get_public_key().get_segwit_address().to_script_pub_key()')
                 code = (f'key_{i} = PrivateKey.from_bytes(bytes.fromhex({key_hex!r}))\n'
                         f'public_key_{i} = key_{i}.get_public_key().to_hex(compressed=True)\n'
-                        f'assert key_{i}.get_public_key().get_segwit_address().to_script_pub_key().to_hex() == previous_script_{i}.to_hex()\n'
+                        f'assert {expected_lock_code}.to_hex() == previous_script_{i}.to_hex()\n'
                         f'tx.has_segwit = True\n'
                         f'digest_{i} = tx.get_transaction_segwit_digest({i}, script_code_{i}, previous_amount_{i}, {mode_code})\n'
                         f'signature_{i} = key_{i}.sign_segwit_input(tx, {i}, script_code_{i}, previous_amount_{i}, {mode_code})\n'
-                        f'tx.set_witness({i}, TxWitnessInput([signature_{i}, public_key_{i}]))')
+                        f'tx.set_witness({i}, TxWitnessInput([signature_{i}, public_key_{i}]))'
+                        + (f'\ntx.inputs[{i}].script_sig = Script([key_{i}.get_public_key().get_segwit_address().to_script_pub_key().to_hex()])' if nested else ''))
             exec(code, namespace)
             signing_codes.append(code)
             signing['inputs'].append(dict(digest=namespace[f'digest_{i}'].hex(), signature=namespace[f'signature_{i}'],
                                           publicKey=namespace[f'public_key_{i}'], scriptSig=namespace['tx'].inputs[i].script_sig.to_hex(), python=code,
                                           sighashType=mode, sighashName=SIGHASH_NAMES[mode],
-                                          witness=list(namespace['tx'].witnesses[i].stack) if native else []))
+                                          witness=list(namespace['tx'].witnesses[i].stack) if segwit else [],
+                                          **({'redeemScript': inputs[i]['redeemScript'].strip().lower()} if nested else {})))
         final_code = 'raw_hex = tx.serialize()\ntxid = tx.get_txid()'
         exec(final_code, namespace)
         snippets.extend(signing_codes + [final_code])
@@ -698,7 +733,7 @@ def trace_transaction(request):
         offset += size
 
     field('Version', 4, 'header', 'Version 2, stored as a four-byte little-endian integer.', constructor)
-    if native and signing:
+    if segwit and signing:
         field('SegWit marker', 1, 'witness', '00 marks the extended serialization. Marker and flag are omitted when calculating the TXID.', signing_codes[0])
         field('SegWit flag', 1, 'witness', '01 indicates witness data follows the outputs. The WTXID includes this serialization.', signing_codes[0])
     field('Input count', len(encode_varint(len(inputs))), 'count', f'{len(inputs)} inputs, encoded as CompactSize. This is a count, not a byte length.', constructor)
@@ -706,7 +741,12 @@ def trace_transaction(request):
         prefix, code = f'Input {i + 1} · ', snippets[i]
         field(prefix + 'previous TXID', 32, 'outpoint', 'The previous transaction ID in internal byte order: the reverse of the byte pairs entered in display order.', code)
         field(prefix + 'output index', 4, 'index', f'Output {int(row["vout"])} of that previous transaction, numbered from zero. Four bytes, little-endian.', code)
-        if signing and multisig:
+        if signing and nested:
+            sign_code = signing_codes[i]
+            field(prefix + 'scriptSig length', 1, 'count', '17 hexadecimal: 23 bytes of scriptSig follow. This CompactSize prefix is outside the script.', sign_code)
+            field(prefix + 'redeem-program push', 1, 'count', '16 hexadecimal: push the following 22-byte redeem program. This is a script push opcode.', sign_code)
+            field(prefix + 'redeem program', 22, 'script', '0014 followed by the public-key hash. Its HASH160 must match the outer P2SH lock; it selects P2WPKH witness validation.', sign_code)
+        elif signing and spend_type == 'p2sh':
             signed_input = signing['inputs'][i]
             script_size = len(bytes.fromhex(signed_input['scriptSig']))
             sign_code = signing_codes[i]
@@ -720,7 +760,7 @@ def trace_transaction(request):
             redeem_size = len(bytes.fromhex(script_codes[i]))
             field(prefix + 'redeem-script push', 2, 'count', f'OP_PUSHDATA1 (4c), then {redeem_size:02x}: push the {redeem_size}-byte redeem script.', sign_code)
             field(prefix + 'redeem script', redeem_size, 'script', 'The revealed m-of-3 multisig rule, including every participant’s public key. Its HASH160 must match the previous P2SH output.', sign_code)
-        elif signing and not native:
+        elif signing and not segwit:
             signed_input = signing['inputs'][i]
             script_size = len(bytes.fromhex(signed_input['scriptSig']))
             sig_size = len(bytes.fromhex(signed_input['signature']))
@@ -734,26 +774,36 @@ def trace_transaction(request):
             field(prefix + 'public key', pub_size, 'script', 'The revealed public key. Its HASH160 must match the previous P2PKH locking script, and the signature must verify against it.', sign_code)
         else:
             field(prefix + 'scriptSig length', 1, 'count', '00 means zero script bytes follow. It is a length prefix, not an OP_0 inside scriptSig.', code)
-            field(prefix + 'empty scriptSig', 0, 'script', 'Native P2WPKH requires an empty scriptSig. The signature and public key go in this input’s witness stack.' if native else 'No bytes yet. P2SH signing adds an empty dummy, the required signatures, and the redeem script here.' if multisig else 'No bytes yet. Signing a P2PKH input adds a signature and public key here. The previous locking script does not belong here.', code)
+            field(prefix + 'empty scriptSig', 0, 'script', 'Native P2WSH requires an empty scriptSig. Signatures and the witness script go in witness.' if wsh else 'Nested signing fills this scriptSig with a single pushed witness program. Signatures go in witness.' if nested else 'Native P2WPKH requires an empty scriptSig. The signature and public key go in this input’s witness stack.' if native else 'No bytes yet. P2SH signing adds an empty dummy, the required signatures, and the redeem script here.' if multisig else 'No bytes yet. Signing a P2PKH input adds a signature and public key here. The previous locking script does not belong here.', code)
         field(prefix + 'sequence', 4, 'sequence', 'ffffffff is the final sequence value. With locktime zero, this example has no transaction locktime delay.', code)
     field('Output count', len(encode_varint(len(outputs))), 'count', f'{len(outputs)} outputs, encoded as CompactSize.', constructor)
     for i, amount in enumerate(out_amounts):
         code = snippets[len(inputs) + i]
         field(f'Output {i + 1} · amount', 8, 'amount', f'{amount:,} satoshis, encoded as an eight-byte little-endian integer. Addresses and BTC decimal strings are not serialized.', code)
         field(f'Output {i + 1} · script length', 1, 'count', f'{script_size_expected:02x} hexadecimal is {script_size_expected} decimal: the length of the {spend_type.upper()} locking script in bytes.', code)
-        field(f'Output {i + 1} · locking script', script_size_expected, 'script', 'OP_0 followed by a 20-byte public-key hash: a native version-0 witness program.' if native else 'OP_HASH160 <20-byte redeem-script hash> OP_EQUAL. The spender must reveal and satisfy the matching redeem script.' if multisig else 'OP_DUP OP_HASH160 <20-byte public-key hash> OP_EQUALVERIFY OP_CHECKSIG. This is the new output’s spending condition.', code)
-    if native and signing:
+        field(f'Output {i + 1} · locking script', script_size_expected, 'script', 'OP_0 followed by the 32-byte SHA256 of a witness script: a native P2WSH program.' if wsh else 'OP_0 followed by a 20-byte public-key hash: a native version-0 witness program.' if native else 'OP_HASH160 <20-byte redeem-script hash> OP_EQUAL. The spender must reveal and satisfy the matching redeem script.' if multisig or nested else 'OP_DUP OP_HASH160 <20-byte public-key hash> OP_EQUALVERIFY OP_CHECKSIG. This is the new output’s spending condition.', code)
+    if segwit and signing:
         for i, signed_input in enumerate(signing['inputs']):
             code = signing_codes[i]
-            sig_size = len(bytes.fromhex(signed_input['signature']))
-            pub_size = len(bytes.fromhex(signed_input['publicKey']))
             prefix = f'Input {i + 1} witness · '
-            field(prefix + 'item count', 1, 'witness', 'Two witness stack items: signature and compressed public key. Witness is a list of byte strings, not a script.', code)
-            field(prefix + 'signature length', len(encode_varint(sig_size)), 'count', f'{sig_size} bytes follow. This is CompactSize, not a script push opcode.', code)
-            field(prefix + 'DER signature', sig_size - 1, 'signature', 'ECDSA signature of the BIP143 digest. The following SIGHASH byte is separate from DER.', code)
-            field(prefix + 'sighash type', 1, 'header', f'{signed_input["sighashType"]:02x} selects {signed_input["sighashName"]}.', code)
-            field(prefix + 'public-key length', len(encode_varint(pub_size)), 'count', f'{pub_size} bytes of SEC public key follow.', code)
-            field(prefix + 'public key', pub_size, 'witness', 'The compressed public key must match the 20-byte witness program.', code)
+            items = signed_input['witness']
+            field(prefix + 'item count', len(encode_varint(len(items))), 'count', f'{len(items)} witness items. This is CompactSize, not Script.', code)
+            for position, value in enumerate(items):
+                size = len(bytes.fromhex(value))
+                if wsh and position == 0:
+                    field(prefix + 'dummy length', 1, 'count', '00 means the dummy witness item is empty. It is a CompactSize length, not an OP_0 opcode.', code)
+                    field(prefix + 'empty CHECKMULTISIG dummy', 0, 'witness', 'Empty bytes are the extra item consumed by CHECKMULTISIG. NULLDUMMY requires this.', code)
+                elif wsh and position == len(items) - 1:
+                    field(prefix + 'witness-script length', len(encode_varint(size)), 'count', f'{size} bytes of witness script follow; this is CompactSize, not OP_PUSHDATA1.', code)
+                    field(prefix + 'witness script', size, 'witness', 'The revealed multisig rule and all public keys. SHA256 must match the previous 32-byte P2WSH witness program.', code)
+                elif wsh or position == 0:
+                    suffix = f' {position}' if wsh else ''
+                    field(prefix + 'signature' + suffix + ' length', len(encode_varint(size)), 'count', f'{size} signature bytes follow. This is CompactSize, not a script push.', code)
+                    field(prefix + 'DER signature' + suffix, size - 1, 'signature', 'ECDSA signature of the BIP143 digest. The following SIGHASH byte is separate from DER.', code)
+                    field(prefix + 'sighash type' + suffix, 1, 'header', f'{signed_input["sighashType"]:02x} selects {signed_input["sighashName"]}.', code)
+                else:
+                    field(prefix + 'public-key length', len(encode_varint(size)), 'count', f'{size} bytes of SEC public key follow.', code)
+                    field(prefix + 'public key', size, 'witness', 'The compressed public key must match the 20-byte witness program.', code)
     field('Locktime', 4, 'header', 'Zero: no absolute locktime constraint. Four bytes, little-endian.', constructor)
     assert offset == len(raw), 'Transaction annotations must cover the library serialization exactly.'
     python = preamble + '\n\n' + '\n\n'.join(snippets) + '\nprint(raw_hex)'
@@ -895,39 +945,44 @@ def trace_execution(request):
     if type(index) is not int or index < 0:
         raise ValueError('Choose a valid input index.')
     spend_type = options.get('spendType', 'p2pkh')
-    if spend_type not in ('p2pkh', 'p2sh', 'p2wpkh'):
+    if spend_type not in ('p2pkh', 'p2sh', 'p2wpkh', 'p2wsh', 'nested'):
         raise ValueError('Choose a supported spend example.')
-    native = spend_type == 'p2wpkh'
+    segwit = spend_type in ('p2wpkh', 'p2wsh', 'nested')
     amount = options.get('amount')
-    if native and (type(amount) is not int or not 0 <= amount <= 21_000_000 * 100_000_000):
+    if segwit and (type(amount) is not int or not 0 <= amount <= 21_000_000 * 100_000_000):
         raise ValueError('Supply the previous output amount in integer satoshis.')
     experiment = options.get('experiment', 'original')
-    stack = 'tx.witnesses[index].stack' if native else 'tx.inputs[index].script_sig.script'
+    stack = 'tx.witnesses[index].stack' if segwit else 'tx.inputs[index].script_sig.script'
     edits = {
         'original': '',
         'key': f"replacement = PrivateKey(secret_exponent=2).get_public_key().to_hex()\nif {stack}[1] == replacement:\n    replacement = PrivateKey(secret_exponent=3).get_public_key().to_hex()\n{stack}[1] = replacement",
         'signature': f"signature = {stack}[0]\n{stack}[0] = signature[:-4] + ('00' if signature[-4:-2] != '00' else '01') + signature[-2:]",
         'output': 'tx.outputs[0].amount += 1',
     }
-    if native:
+    if segwit:
         edits['amount'] = 'amount = amount + 1 if amount < 21_000_000 * 100_000_000 else amount - 1'
-    if spend_type == 'p2sh':
+    if spend_type in ('p2sh', 'p2wsh'):
+        script_stack = 'tx.witnesses[index].stack' if spend_type == 'p2wsh' else 'tx.inputs[index].script_sig.script'
         edits.update(
-            key="redeem = Script.from_raw(tx.inputs[index].script_sig.script[-1])\nreplacement = PrivateKey(secret_exponent=4).get_public_key().to_hex()\nif replacement == redeem.script[1]:\n    replacement = PrivateKey(secret_exponent=5).get_public_key().to_hex()\nredeem.script[1] = replacement\ntx.inputs[index].script_sig.script[-1] = redeem.to_hex()",
-            signature="signature = tx.inputs[index].script_sig.script[1]\ntx.inputs[index].script_sig.script[1] = signature[:-4] + ('00' if signature[-4:-2] != '00' else '01') + signature[-2:]",
-            order="items = tx.inputs[index].script_sig.script\nitems[1:-1] = reversed(items[1:-1])",
-            missing="del tx.inputs[index].script_sig.script[1]",
-            dummy="tx.inputs[index].script_sig.script[0] = 'OP_1'",
+            key=f"redeem = Script.from_raw({script_stack}[-1])\nreplacement = PrivateKey(secret_exponent=4).get_public_key().to_hex()\nif replacement == redeem.script[1]:\n    replacement = PrivateKey(secret_exponent=5).get_public_key().to_hex()\nredeem.script[1] = replacement\n{script_stack}[-1] = redeem.to_hex()",
+            signature=f"signature = {script_stack}[1]\n{script_stack}[1] = signature[:-4] + ('00' if signature[-4:-2] != '00' else '01') + signature[-2:]",
+            order=f"items = {script_stack}\nitems[1:-1] = reversed(items[1:-1])",
+            missing=f"del {script_stack}[1]",
+            dummy=f"{script_stack}[0] = {repr('01' if spend_type == 'p2wsh' else 'OP_1')}",
         )
+    if spend_type == 'nested':
+        edits['redeem'] = "redeem = tx.inputs[index].script_sig.script[0]\ntx.inputs[index].script_sig.script[0] = redeem[:-2] + ('00' if redeem[-2:] != '00' else '01')"
+        edits['extra'] = "tx.inputs[index].script_sig.script.insert(0, 'OP_0')"
     if experiment not in edits:
         raise ValueError('Choose an available experiment.')
-    helper = 'trace_p2wpkh_input' if native else 'trace_p2sh_input' if spend_type == 'p2sh' else 'trace_p2pkh_input'
+    helper = {'p2pkh': 'trace_p2pkh_input', 'p2sh': 'trace_p2sh_input', 'p2wpkh': 'trace_p2wpkh_input',
+              'p2wsh': 'trace_p2wsh_input', 'nested': 'trace_nested_p2wpkh_input'}[spend_type]
     code = ("from bitcoinutils.transactions import Transaction\nfrom bitcoinutils.script import Script\nfrom bitcoinutils.keys import PrivateKey\n"
             f"from bitcoin_education import {helper}\n\n"
             f"tx = Transaction.from_raw({options['hex']!r})\nindex = {index}\nprevious_script = Script.from_raw({options['previousScript']!r})\n"
-            + (f"amount = {amount}\n" if native else '')
+            + (f"amount = {amount}\n" if segwit else '')
             + "if not 0 <= index < len(tx.inputs):\n    raise ValueError('Choose a valid input index.')\n"
-            + edits[experiment] + f"\nresult = {helper}(tx, index, previous_script" + (', amount)' if native else ')'))
+            + edits[experiment] + f"\nresult = {helper}(tx, index, previous_script" + (', amount)' if segwit else ')'))
     namespace = {}
     exec(code, namespace)
     result = namespace['result']

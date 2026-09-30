@@ -11,7 +11,7 @@ The complete educational package from python-bitcoin-utils commit `71ff0ec` is
 now maintained in this project, with its MIT license, dedicated tests, and
 historical block fixture. It contains:
 
-- Scoped P2PKH, P2SH multisig, and native P2WPKH execution traces.
+- Scoped P2PKH, P2SH multisig, P2WPKH, P2WSH multisig, and P2SH-P2WPKH execution traces.
 - BIP143 preimage, component hashes, and byte ranges; each digest is checked
   against the core transaction signer.
 - Subsidy and BIP34 coinbase construction helpers.
@@ -27,7 +27,7 @@ for API details and copied-example setup.
 ## Current website integration
 
 The legacy Script execution and candidate-building lessons now call the local
-package. All three spend examples cover the complete seven-stage website journey.
+package. All five spend examples cover the complete seven-stage website journey.
 P2SH execution checks the redeem-script commitment, restores the signature
 stack, and evaluates a canonical m-of-3 rule with ordered signature matching
 and NULLDUMMY. It supports all six exposed legacy SIGHASH modes, with other
@@ -39,6 +39,22 @@ passes the final coinbase-based TXID root into mining and modeled block relay.
 Adapter tests check execution experiments, both trees, commitment bytes,
 selection/omission, and mining-header linkage in CPython and WebAssembly.
 See the [native integration notes](docs/native-p2wpkh-library-requirements.md).
+
+## P2WSH and nested integration
+
+P2WSH validates the SHA256 commitment, loads witness data, and shares the scoped
+ordered CHECKMULTISIG engine with P2SH, using BIP143 and the supplied amount.
+Nested P2SH-P2WPKH validates the outer HASH160 and single pushed program, then
+uses the P2WPKH witness evaluator on a copy. All SegWit paths require aligned
+witness slots, support six BIP143 modes, and check a single true final item.
+The core raw Script parser normalizes pushes, so the nested object trace does
+not claim byte-level push canonicality or full consensus validation.
+
+In 0.8.7, `P2wshAddress.__init__` discards both address and witness-program
+arguments. The website's `p2wsh_address_to_script` uses the core Bech32 decoder,
+checks the current network, witness version zero and 32-byte program, then
+constructs the Script. It appears in copied examples and is covered in both
+Python runtimes. Core address generation from a witness script still works.
 
 ## Model boundaries
 

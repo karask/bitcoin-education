@@ -7,6 +7,8 @@ from bitcoin_education.block import (
 )
 from bitcoin_education.p2sh import trace_p2sh_input
 from bitcoin_education.p2pkh import trace_p2pkh_input
+from bitcoin_education.p2wsh import trace_p2wsh_input
+from bitcoin_education.nested import trace_nested_p2wpkh_input
 from bitcoin_education.p2wpkh import trace_p2wpkh_input
 from bitcoin_education.segwit_block import create_segwit_coinbase_transaction
 from bitcoin_education.sighash import trace_segwit_v0_sighash
@@ -18,6 +20,8 @@ __all__ = [
     "trace_p2sh_input",
     "trace_p2pkh_input",
     "trace_p2wpkh_input",
+    "trace_p2wsh_input",
+    "trace_nested_p2wpkh_input",
     "create_segwit_coinbase_transaction",
     "trace_segwit_v0_sighash",
 ]
