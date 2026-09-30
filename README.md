@@ -8,10 +8,15 @@ UTXOs and outputs, with a field-by-field hex explorer and runnable Python.
 
 ## Learning path
 
+The base URL opens a welcome screen with both sidebar groups collapsed. Choose
+Addresses or Transactions to enter a path; the logo returns home and closes both
+groups. Existing lesson links still open directly.
+
 Append a lesson fragment to `/bitcoin-education/`:
 
 | Fragment | Lesson |
 | --- | --- |
+| `#home` | Welcome screen and learning-path choices |
 | `#p2pkh` | SEC public key → HASH160 → Base58Check |
 | `#p2sh` | Multisig redeem script → HASH160 → P2SH |
 | `#p2wpkh` | Compressed key → witness v0 program → Bech32 |
