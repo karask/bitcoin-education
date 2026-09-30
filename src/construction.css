@@ -30,6 +30,11 @@
 .merkle-levels > div > span { color: var(--faint); font-size: 9px; letter-spacing: .8px; }
 .merkle-levels > div > div { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 11px; }
 .merkle-levels code { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 10px; }
+.merkle-node { min-width: 0; }
+.merkle-node code { display: block; overflow-wrap: anywhere; }
+.merkle-node small { display: block; font-size: 9px; color: var(--muted); max-width: 180px; margin: 8px 0 0; line-height: 1.6; }
+.witness-commitment h3 { margin-top: 24px; font-weight: 500; }
+.witness-commitment .construction-root { border-color: var(--teal); }
 .construction-pair-picker { display: flex; flex-wrap: wrap; gap: 7px; margin: 20px 0 12px; }
 .construction-pair-picker button { padding: 9px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--inset); color: var(--muted); font-size: 10px; cursor: pointer; }
 .construction-pair-picker button.selected { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-line); }

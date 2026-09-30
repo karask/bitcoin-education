@@ -5,18 +5,33 @@ export type TransactionPage = 'transaction' | 'signing' | 'execution' | 'propaga
 export type LessonKind = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
 export type SpendType = 'p2pkh' | 'p2wpkh';
 export type SighashType = 1 | 2 | 3 | 129 | 130 | 131;
+export interface Bip143Trace {
+  fields: { name: string; start: number; end: number; size: number; hex: string }[];
+  hashPrevouts: string; hashSequence: string; hashOutputs: string;
+  prevouts_data: string | null; sequence_data: string | null; outputs_data: string | null;
+  single_output_out_of_range: boolean;
+}
 export interface SighashPreview {
   spendType: SpendType;
-  inputs: { type: SighashType; name: string; digest: string; preimage: string | null; algorithm: 'Legacy' | 'BIP143'; amountScope: string; inputScope: string; sequenceScope: string; outputScope: string; script: string }[];
+  inputs: { type: SighashType; name: string; digest: string; preimage: string | null; algorithm: 'Legacy' | 'BIP143'; amountScope: string; inputScope: string; sequenceScope: string; outputScope: string; script: string; bip143?: Bip143Trace; python?: string }[];
+}
+export interface MerkleTrace {
+  txids: string[]; levels: string[][]; levels_internal: string[][];
+  pairs: { level: number; index: number; left: string; right: string; left_internal: string; right_internal: string; preimage: string; parent: string; parent_internal: string; duplicated: boolean }[];
+  root: string; root_internal: string; mutated: boolean;
+}
+export interface WitnessCommitment {
+  wtxids: string[]; witness_tree: MerkleTrace; witness_root: string; witness_root_internal: string;
+  witness_reserved_value: string; commitment_preimage: string; commitment_hash: string;
+  commitment_script: string; commitment_output_index: number;
 }
 export interface CandidateResult {
   height: number; budget: number; used: number; subsidy: number; fees: number; reward: number;
-  entries: { id: string; label: string; fee: number; vsize: number; rate: number; txid: string; selected: boolean }[];
+  entries: { id: string; label: string; fee: number; vsize: number; rate: number; txid: string; wtxid: string; hasWitness: boolean; selected: boolean }[];
   selected: string[];
   coinbase: { txid: string; hex: string; scriptSig: string; payoutScript: string };
-  merkle: { txids: string[]; levels: string[][]; levels_internal: string[][];
-    pairs: { level: number; index: number; left: string; right: string; left_internal: string; right_internal: string; preimage: string; parent: string; parent_internal: string; duplicated: boolean }[];
-    root: string; root_internal: string; mutated: boolean };
+  merkle: MerkleTrace;
+  witnessCommitment: WitnessCommitment | null;
   python: string;
 }
 
@@ -46,7 +61,7 @@ export interface TransactionResult {
 }
 
 export interface LessonInput {
-  execution?: { hex: string; previousScript: string; inputIndex: number; experiment: string };
+  execution?: { hex: string; previousScript: string; inputIndex: number; experiment: string; spendType: SpendType; amount: number };
   mining?: { startNonce: number; difficulty: 'easy' | 'harder'; count: number; merkleRoot: string };
   candidate?: { hex: string; fee: number; budget: number; height: number; include: boolean; network: Network };
   signTransaction?: boolean;
@@ -83,7 +98,7 @@ export interface StepResult {
 }
 
 export interface LessonTrace {
-  execution?: { success: boolean; final_stack: string[]; error: {code: string; message: string} | null; python: string; steps: {phase: string; instruction: string; stack_before: string[]; stack_after: string[]; error: string | null; digest?: string; signature_valid?: boolean}[] };
+  execution?: { success: boolean; final_stack: string[]; error: {code: string; message: string} | null; python: string; sighash: string | null; amount?: number; witness_program?: string; script_code?: string; clean_stack?: boolean; steps: {phase: string; instruction: string; kind?: string; stack_before: string[]; stack_after: string[]; error: string | null; digest?: string; signature_valid?: boolean}[] };
   mining?: MiningResult;
   candidate?: CandidateResult;
   transaction?: TransactionResult;

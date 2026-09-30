@@ -78,7 +78,7 @@ def parse_wire(raw):
     return base, scripts, outputs, witnesses
 
 
-def independent_digest(req, raw, index, mode):
+def independent_preimage(req, raw, index, mode):
     rows = req['transaction']['inputs']
     _, _, outputs, _ = parse_wire(raw)
     base, anyone = mode & 31, bool(mode & 128)
@@ -93,7 +93,11 @@ def independent_digest(req, raw, index, mode):
     script_code = b'\x19\x76\xa9\x14' + key_hash + b'\x88\xac'
     preimage = (struct.pack('<I', 2) + prevouts + sequence + outpoints[index] + script_code
                 + struct.pack('<Q', int(rows[index]['amount'])) + b'\xff' * 4 + hash_outputs + struct.pack('<II', 0, mode))
-    return double_sha(preimage)
+    return preimage
+
+
+def independent_digest(req, raw, index, mode):
+    return double_sha(independent_preimage(req, raw, index, mode))
 
 
 class NativeTransactionsTests(unittest.TestCase):
@@ -150,7 +154,22 @@ class NativeTransactionsTests(unittest.TestCase):
                         row.pop('privateKey')
                     preview = trace({**preview_req, 'previewSighash': True})['sighash']['inputs'][index]
                     self.assertEqual(preview['digest'], digest.hex())
-                    self.assertIsNone(preview['preimage'])
+                    self.assertEqual(preview['preimage'], independent_preimage(req, bytes.fromhex(result['steps'][0]['hex']), index, mode).hex())
+                    fields = preview['bip143']['fields']
+                    self.assertEqual(''.join(field['hex'] for field in fields), preview['preimage'])
+                    self.assertEqual([field['name'] for field in fields], ['version', 'hashPrevouts', 'hashSequence', 'outpoint', 'scriptCode', 'amount', 'sequence', 'hashOutputs', 'locktime', 'sighashType'])
+                    end = 0
+                    for field in fields:
+                        self.assertEqual(field['start'], end)
+                        self.assertEqual(preview['preimage'][field['start'] * 2:field['end'] * 2], field['hex'])
+                        end = field['end']
+                    self.assertEqual(end, len(preview['preimage']) // 2)
+                    for hash_name, source_name in [('hashPrevouts', 'prevouts_data'), ('hashSequence', 'sequence_data'), ('hashOutputs', 'outputs_data')]:
+                        source = preview['bip143'][source_name]
+                        self.assertEqual(preview['bip143'][hash_name], '00' * 32 if source is None else double_sha(bytes.fromhex(source)).hex())
+                    namespace = {}
+                    exec(preview['python'], namespace)
+                    self.assertEqual(namespace['result'], preview['bip143'])
                     self.assertEqual(preview['algorithm'], 'BIP143')
 
     def test_single_without_corresponding_output_uses_zero_hash_outputs(self):
@@ -164,6 +183,9 @@ class NativeTransactionsTests(unittest.TestCase):
             self.assertNotEqual(digest, b'\x01' + bytes(31))
             preview = trace({**req, 'previewSighash': True})['sighash']['inputs'][1]
             self.assertEqual(preview['outputScope'], 'No outputs · hashOutputs is zero')
+            self.assertTrue(preview['bip143']['single_output_out_of_range'])
+            self.assertEqual(preview['bip143']['hashOutputs'], '00' * 32)
+            self.assertIsNone(preview['bip143']['outputs_data'])
 
     def test_current_amount_committed_in_every_mode_but_other_amount_not_committed(self):
         for mode in (1, 2, 3, 129, 130, 131):
@@ -193,7 +215,8 @@ class NativeTransactionsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             trace(req)
 
-    def test_native_bytes_cannot_enter_legacy_only_candidate_builder(self):
+    def test_native_bytes_enter_candidate_with_witness_commitment(self):
         result = trace(request())
-        with self.assertRaisesRegex(ValueError, 'legacy transactions only'):
-            trace(dict(kind='construction', candidate=dict(hex=result['steps'][0]['hex'], fee=1000)))
+        candidate = trace(dict(kind='construction', candidate=dict(hex=result['steps'][0]['hex'], fee=1000)))['candidate']
+        self.assertIn('yours', candidate['selected'])
+        self.assertIsNotNone(candidate['witnessCommitment'])

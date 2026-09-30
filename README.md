@@ -44,9 +44,10 @@ use supplied amounts; unsigned byte size is not a signed fee-rate estimate.
 The signing action uses `PrivateKey.sign_input` for P2PKH or `sign_segwit_input`
 for native P2WPKH. SIGHASH_ALL is the default. A collapsed explorer before signing
 lets each input choose ALL, NONE, SINGLE, or any of those with ANYONECANPAY,
-and shows the committed fields and actual library digest. Legacy also exposes
-the exact preimage. The BIP143 trace helper is included locally; connecting its
-preimage fields to the native explorer is a remaining UI integration step.
+and shows the committed fields and actual library digest. Both examples expose
+the exact signing preimage. The native explorer shows
+ordered BIP143 byte fields, the three component hashes and their serialized
+inputs, and which components are zero by the selected SIGHASH rule.
 Each 32-byte hex key must match its supplied previous lock. The public example
 uses scalar 1; use disposable learning keys, never funded wallet keys. Keys stay
 in memory and appear in the displayed/copied Python. Legacy supports both SEC
@@ -61,11 +62,18 @@ legacy preimages, verify ECDSA signatures, strip witness serialization, and
 check IDs and weight/vsize. Browser Python is compared with CPython.
 
 Script execution uses the project-local `bitcoin_education.trace_p2pkh_input`
-inside the browser worker, built on the core `bitcoin-utils` APIs. Select an input and step through or play its
-scriptSig and scriptPubKey, with before/after stacks and the CHECKSIG digest.
-Experiments change a public key, signature byte, or output on a separate copy.
-The evaluator supports standard legacy P2PKH with SIGHASH_ALL; it does not
-provide full node validation, on-chain UTXO checks, or broadcasting.
+and `trace_p2wpkh_input` inside the browser worker, built on the core
+`bitcoin-utils` APIs. Select an input and step through or play its instructions
+with before/after stacks and the CHECKSIG digest. Native execution loads the
+witness as stack data, then executes the implied P2PKH scriptCode using BIP143
+and the supplied previous amount. Its verdict includes the clean-stack check.
+Experiments change a public key, signature byte, or output on a separate copy;
+native also offers a wrong-amount experiment. Output edits respect the selected
+SIGHASH scope. Legacy execution supports SIGHASH_ALL; native supports all six
+exposed modes, including SINGLE without a corresponding output. Compressed
+keys are a scope/default-policy restriction for the native tracer; low-S and
+NULLFAIL checks are not implemented. Neither evaluator provides full node
+validation, on-chain UTXO checks, or broadcasting.
 
 One set of seven transaction menu items serves both spend examples. A compact
 selector switches between Legacy P2PKH and Native P2WPKH while preserving each
@@ -84,20 +92,28 @@ starting UTXOs, and explicitly modeled validation. Connections are assumed to
 have negotiated BIP339 wtxidrelay; inv/getdata use MSG_WTX. No real network broadcast takes place, and the
 transaction stays unconfirmed there. Block construction uses `bitcoin-utils`
 0.8.7 transaction objects with local `bitcoin_education` helpers to select
-serialized legacy transactions, build a BIP34 coinbase with subsidy and assumed
-fees, and trace every transaction Merkle pair.
+transactions by virtual-byte fee rate, build a BIP34 coinbase with subsidy and
+assumed fees, and trace every transaction Merkle pair. When selected entries
+contain witness data, the candidate also builds a separate WTXID tree with a
+zero coinbase leaf, a 32-byte coinbase witness reserved value, and an OP_RETURN
+witness commitment. The UI exposes both trees, pair preimages, the commitment
+preimage/hash/script, and the final coinbase TXID. Omitting or skipping the
+native transaction leaves a legacy candidate when only legacy entries remain.
 Changing height or selection changes the coinbase TXID and committed root.
 Mining hashes an 80-byte header containing that root with a deliberately easy
 target. The previous hash and timestamp are illustrative, so the result is not
 a valid block on the selected chain. Block relay and confirmations remain a
 separate simulation that assumes a valid block was found. Full block
 serialization and contextual validation are not implemented.
+The native block relay explains compact-block version 2, WTXID-based short IDs,
+witness-bearing transaction delivery, and modeled witness-commitment checks.
 The complete former library learning package, including newer native helpers,
 now lives in `public/python/bitcoin_education`. Its tests and MIT license moved
-with it. The migration preserves current lesson behavior: native execution,
-exact-preimage inspection, and witness-commitment screens still need to be
-connected to the migrated APIs. They no longer depend on a library release.
-See the [native integration plan](docs/native-p2wpkh-library-requirements.md),
+with it. Both spend examples now connect Anatomy → Signing → Script execution →
+Propagation → Block construction → Mining → Block propagation. The native
+execution, exact-preimage, and witness-commitment screens use these local APIs,
+without requiring a library release.
+See the [native integration notes](docs/native-p2wpkh-library-requirements.md),
 [local package docs](public/python/bitcoin_education/README.md), and
 [model boundaries](LIBRARY_GAPS.md).
 

@@ -22,7 +22,7 @@ export function SigningWalkthrough({ data }: { data: TransactionResult }) {
         : <><h4>Unlocking script · two data pushes</h4><code className="tx-selected-hex">{item.scriptSig}</code></>}
     </details>)}
     <p>The library created these signatures and the public keys match the supplied locks. This lab does not verify UTXOs on-chain or broadcast transactions.</p>
-    {native ? <p className="tx-sighash-compat">The interactive Script execution walkthrough currently covers Legacy P2PKH. You can inspect the signed witness here and continue to the shared propagation simulation.</p>
+    {native ? <p>Continue to Script execution to load the witness and verify each input’s BIP143 signature.</p>
       : signing.inputs.some(item => item.sighashType !== 1) ? <p className="tx-sighash-compat">The Script execution lesson’s educational evaluator currently supports SIGHASH_ALL only. It will stop at its mode check for an alternate signature.</p>
         : <p>Continue to Script execution to verify each input’s P2PKH script.</p>}
     <div className="tx-size-comparison"><span>Unsigned <strong>{signing.unsignedBytes} bytes</strong></span><ArrowRight size={20} /><span>Signed <strong>{data.totalSize} bytes</strong></span><span>Fee sizing <strong>{data.vsize} vB</strong></span></div>

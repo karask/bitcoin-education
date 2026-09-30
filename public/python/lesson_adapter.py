@@ -422,7 +422,7 @@ def selected_sighash(row, index, output_count, spend_type="p2pkh"):
 
 
 def trace_sighash(request):
-    """Preview the library digest and scope before signing; legacy also exposes its preimage."""
+    """Preview the signing digest, exact preimage, and scope before signing."""
     from bitcoinutils.constants import EMPTY_TX_SEQUENCE, NEGATIVE_SATOSHI, SIGHASH_ANYONECANPAY
     from bitcoinutils.transactions import Transaction, TxOutput
     import struct
@@ -436,10 +436,18 @@ def trace_sighash(request):
         mode = selected_sighash(row, index, len(outputs), spend_type)
         script = Script.from_raw(unsigned['transaction']['scriptCodes'][index])
         if spend_type == 'p2wpkh':
+            from bitcoin_education import trace_segwit_v0_sighash
             base, anyone = mode & 0x1f, bool(mode & SIGHASH_ANYONECANPAY)
             amount = unsigned['transaction']['previousAmounts'][index]
-            digest = tx.get_transaction_segwit_digest(index, script, amount, mode)
-            previews.append(dict(type=mode, name=SIGHASH_NAMES[mode], digest=digest.hex(), preimage=None,
+            bip143 = trace_segwit_v0_sighash(tx, index, script, amount, mode)
+            python = ("from bitcoinutils.transactions import Transaction\n"
+                      "from bitcoinutils.script import Script\n"
+                      "from bitcoin_education import trace_segwit_v0_sighash\n\n"
+                      f"tx = Transaction.from_raw({unsigned['steps'][0]['hex']!r})\n"
+                      f"script_code = Script.from_raw({script.to_hex()!r})\n"
+                      f"result = trace_segwit_v0_sighash(tx, {index}, script_code, {amount}, {mode})")
+            previews.append(dict(type=mode, name=SIGHASH_NAMES[mode], digest=bip143['digest'], preimage=bip143['preimage'],
+                bip143=bip143, python=python,
                 script=script.to_hex(), algorithm='BIP143',
                 inputScope=f'Only input {index + 1} outpoint' if anyone else f'All {len(rows)} input outpoints',
                 sequenceScope=f'Only input {index + 1} sequence' if anyone or base in (2, 3) else f'All {len(rows)} input sequences',
@@ -699,7 +707,7 @@ def trace_transaction(request):
 
 
 def trace_candidate(request):
-    """Build an illustrative legacy candidate from real library transactions."""
+    """Build a candidate and its TXID tree, with a witness commitment when needed."""
     options = request.get('candidate', {})
     signed_hex = options.get('hex', '')
     height = options.get('height', 840000)
@@ -708,7 +716,7 @@ def trace_candidate(request):
     fee = options.get('fee', 0)
     network = options.get('network', 'mainnet')
     if not isinstance(signed_hex, str) or not signed_hex or len(signed_hex) % 2:
-        raise ValueError('Supply a signed legacy transaction in hexadecimal.')
+        raise ValueError('Supply a signed transaction in hexadecimal.')
     if type(height) is not int or height not in (839999, 840000, 840001, 1050000):
         raise ValueError('Choose an available example block height.')
     if type(budget) is not int or budget not in (300, 600, 1000):
@@ -721,14 +729,11 @@ def trace_candidate(request):
         bytes.fromhex(signed_hex)
     except ValueError:
         raise ValueError('Supply a signed transaction in hexadecimal.') from None
-    from bitcoinutils.transactions import Transaction
-    if Transaction.from_raw(signed_hex).has_segwit:
-        raise ValueError('The candidate lesson adapter currently accepts legacy transactions only. The local SegWit commitment helper has not been connected to this screen yet.')
     code = ("from bitcoinutils.setup import setup\n"
             "from bitcoinutils.keys import PublicKey\n"
             "from bitcoinutils.script import Script\n"
             "from bitcoinutils.transactions import Transaction, TxInput, TxOutput\n"
-            "from bitcoin_education import create_coinbase_transaction, get_block_subsidy, trace_merkle_root\n\n"
+            "from bitcoin_education import create_coinbase_transaction, create_segwit_coinbase_transaction, get_block_subsidy, trace_merkle_root\n\n"
             f"network = {network!r}\nheight = {height}\nbudget = {budget}\ninclude = {include}\n"
             f"your_fee = {fee}\nyour_tx = Transaction.from_raw({signed_hex!r})\n"
             "setup(network)\n"
@@ -742,7 +747,10 @@ def trace_candidate(request):
             "]\n"
             "entries = [entry for entry in entries if entry['id'] != 'yours' or include]\n"
             "for entry in entries:\n"
-            "    entry['vsize'] = entry['tx'].get_size()  # Legacy bytes equal virtual bytes here.\n"
+            "    tx = entry['tx']\n"
+            "    base_size = len(tx.to_bytes(False))\n"
+            "    total_size = len(tx.to_bytes(tx.has_segwit))\n"
+            "    entry['vsize'] = (base_size * 3 + total_size + 3) // 4\n"
             "    entry['rate'] = entry['fee'] / entry['vsize']\n"
             "entries.sort(key=lambda entry: (-entry['rate'], entry['id']))\n"
             "selected = []\nused = 0\n"
@@ -752,8 +760,15 @@ def trace_candidate(request):
             "        used += entry['vsize']\n"
             "fees = sum(entry['fee'] for entry in selected)\n"
             "subsidy = get_block_subsidy(height, network)\n"
-            "coinbase = create_coinbase_transaction(height, [TxOutput(subsidy + fees, payout_script)], fees=fees, network=network, extra_nonce=b'\\x01')\n"
-            "ordered_transactions = [coinbase] + [entry['tx'] for entry in selected]\n"
+            "selected_transactions = [entry['tx'] for entry in selected]\n"
+            "witness_commitment = None\n"
+            "if any(tx.has_segwit for tx in selected_transactions):\n"
+            "    coinbase, witness_commitment = create_segwit_coinbase_transaction(\n"
+            "        height, [TxOutput(subsidy + fees, payout_script)], transactions=selected_transactions,\n"
+            "        fees=fees, network=network, extra_nonce=b'\\x01', witness_reserved_value=bytes(32))\n"
+            "else:\n"
+            "    coinbase = create_coinbase_transaction(height, [TxOutput(subsidy + fees, payout_script)], fees=fees, network=network, extra_nonce=b'\\x01')\n"
+            "ordered_transactions = [coinbase] + selected_transactions\n"
             "merkle = trace_merkle_root(ordered_transactions)\n")
     namespace = {}
     exec(code, namespace)
@@ -764,12 +779,13 @@ def trace_candidate(request):
                 candidate=dict(height=height, budget=budget, used=namespace['used'], subsidy=namespace['subsidy'],
                                fees=namespace['fees'], reward=namespace['subsidy'] + namespace['fees'],
                                entries=[dict(id=entry['id'], label=entry['label'], fee=entry['fee'], vsize=entry['vsize'],
-                                             rate=entry['rate'], txid=entry['tx'].get_txid(),
+                                             rate=entry['rate'], txid=entry['tx'].get_txid(), wtxid=entry['tx'].get_wtxid(), hasWitness=entry['tx'].has_segwit,
                                              selected=entry in selected) for entry in entries],
                                selected=[entry['id'] for entry in selected],
                                coinbase=dict(txid=coinbase.get_txid(), hex=coinbase.to_hex(),
                                              scriptSig=coinbase.inputs[0].script_sig.script[0],
                                              payoutScript=namespace['payout_script'].to_hex()),
+                               witnessCommitment=namespace['witness_commitment'],
                                merkle=namespace['merkle'], python=code))
 
 
@@ -816,23 +832,37 @@ def trace_execution(request):
     index = options['inputIndex']
     if type(index) is not int or index < 0:
         raise ValueError('Choose a valid input index.')
+    spend_type = options.get('spendType', 'p2pkh')
+    if spend_type not in ('p2pkh', 'p2wpkh'):
+        raise ValueError('Choose a supported spend example.')
+    native = spend_type == 'p2wpkh'
+    amount = options.get('amount')
+    if native and (type(amount) is not int or not 0 <= amount <= 21_000_000 * 100_000_000):
+        raise ValueError('Supply the previous output amount in integer satoshis.')
     experiment = options.get('experiment', 'original')
+    stack = 'tx.witnesses[index].stack' if native else 'tx.inputs[index].script_sig.script'
     edits = {
         'original': '',
-        'key': "replacement = PrivateKey(secret_exponent=2).get_public_key().to_hex()\nif tx.inputs[index].script_sig.script[1] == replacement:\n    replacement = PrivateKey(secret_exponent=3).get_public_key().to_hex()\ntx.inputs[index].script_sig.script[1] = replacement",
-        'signature': "signature = tx.inputs[index].script_sig.script[0]\ntx.inputs[index].script_sig.script[0] = signature[:-4] + ('00' if signature[-4:-2] != '00' else '01') + signature[-2:]",
+        'key': f"replacement = PrivateKey(secret_exponent=2).get_public_key().to_hex()\nif {stack}[1] == replacement:\n    replacement = PrivateKey(secret_exponent=3).get_public_key().to_hex()\n{stack}[1] = replacement",
+        'signature': f"signature = {stack}[0]\n{stack}[0] = signature[:-4] + ('00' if signature[-4:-2] != '00' else '01') + signature[-2:]",
         'output': 'tx.outputs[0].amount += 1',
     }
+    if native:
+        edits['amount'] = 'amount = amount + 1 if amount < 21_000_000 * 100_000_000 else amount - 1'
     if experiment not in edits:
         raise ValueError('Choose an available experiment.')
-    code = ("from bitcoinutils.transactions import Transaction\nfrom bitcoinutils.script import Script\nfrom bitcoinutils.keys import PrivateKey\nfrom bitcoin_education import trace_p2pkh_input\n\n"
+    helper = 'trace_p2wpkh_input' if native else 'trace_p2pkh_input'
+    code = ("from bitcoinutils.transactions import Transaction\nfrom bitcoinutils.script import Script\nfrom bitcoinutils.keys import PrivateKey\n"
+            f"from bitcoin_education import {helper}\n\n"
             f"tx = Transaction.from_raw({options['hex']!r})\nindex = {index}\nprevious_script = Script.from_raw({options['previousScript']!r})\n"
-            + edits[experiment] + "\nresult = trace_p2pkh_input(tx, index, previous_script)")
+            + (f"amount = {amount}\n" if native else '')
+            + "if not 0 <= index < len(tx.inputs):\n    raise ValueError('Choose a valid input index.')\n"
+            + edits[experiment] + f"\nresult = {helper}(tx, index, previous_script" + (', amount)' if native else ')'))
     namespace = {}
     exec(code, namespace)
     result = namespace['result']
     result['python'] = code
-    return dict(network='mainnet', compressed=True, publicKey='', address='', steps=[], pythonPreamble='', execution=result)
+    return dict(network=request.get('network', 'mainnet'), compressed=True, publicKey='', address='', steps=[], pythonPreamble='', execution=result)
 
 
 def trace_lesson(request_json):

@@ -152,3 +152,17 @@ test('migrated native execution, preimage, and witness-commitment helpers match 
   const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');import python_test_support;from education_runtime_vectors import vectors;print(json.dumps(vectors()))"], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
   for (const vector of vectors) assert.deepEqual(JSON.parse(educationVectors.run(JSON.stringify(vector.input))), vector.result);
 });
+
+test('native journey screen requests and experiments match CPython through witness commitment and mining', () => {
+  const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_native_journey import wasm_vectors;print(json.dumps(wasm_vectors()))"], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
+  for (const vector of vectors) {
+    const result = JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input)));
+    assert.deepEqual(result, vector.trace);
+    if (result.candidate) {
+      const mining = JSON.parse(adapter.trace_lesson(JSON.stringify({ kind: 'mining', mining: {
+        startNonce: 0, count: 1, difficulty: 'easy', merkleRoot: result.candidate.merkle.root,
+      } }))).mining;
+      assert.equal(mining.header.slice(72, 136), result.candidate.merkle.root_internal);
+    }
+  }
+});

@@ -130,6 +130,14 @@
 .tx-serialization-path span { padding: 9px 12px; font-size: 11px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); }
 .tx-serialization-path .witness { color: var(--teal); border-color: var(--teal); }
 .tx-color-witness { --field-color: var(--teal); }
+.bip143-explorer p { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.bip143-bytes { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.bip143-bytes button { max-width: 100%; min-width: 0; text-align: left; border: 1px solid var(--line); border-radius: 7px; background: var(--inset); color: var(--text); padding: 12px; cursor: pointer; }
+.bip143-bytes small { display: block; color: var(--muted); margin-bottom: 8px; }
+.bip143-bytes code { display: block; font-size: 11px; overflow-wrap: anywhere; }
+.bip143-bytes button.selected { border-color: var(--teal); color: var(--teal); }
+.bip143-field-detail, .bip143-component { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; }
+.bip143-explorer pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.8; }
 @media (max-width: 900px) {
   .tx-spend-selector { grid-template-columns: 1fr; }
   .tx-spend-options button { flex: 1; }

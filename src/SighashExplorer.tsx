@@ -1,4 +1,5 @@
 import type { SighashPreview, SighashType } from './types';
+import { Bip143Explorer } from './Bip143Explorer';
 
 type Props = {
   index: number; mode: SighashType; native: boolean; outputCount: number;
@@ -38,8 +39,7 @@ export function SighashExplorer({ index, mode, native, outputCount, expanded, to
           : 'Other inputs’ scripts are empty in the signing copy. For NONE and SINGLE their sequences are zeroed; SINGLE uses null placeholders before its matching output. The four-byte mode is appended before double SHA-256.'}</p>
         <div className="tx-sighash-digest"><span>{preview.algorithm} · digest this input will sign</span><code>{preview.digest}</code></div>
         <details><summary>Inspect this input’s scriptCode</summary><code className="tx-selected-hex">{preview.script}</code></details>
-        {preview.preimage && <details><summary>Inspect exact signing preimage · {preview.preimage.length / 2} bytes</summary><code className="tx-selected-hex">{preview.preimage}</code></details>}
-        {native && <p className="tx-sighash-note">This is the real BIP143 digest. The detailed preimage view is not connected to this example yet.</p>}
+        {native ? <Bip143Explorer key={preview.digest} preview={preview} /> : preview.preimage && <details><summary>Inspect exact signing preimage · {preview.preimage.length / 2} bytes</summary><code className="tx-selected-hex">{preview.preimage}</code></details>}
       </> : <p className="tx-sighash-note" role="status">{pendingMessage}</p>}
     </div>}
   </div>;

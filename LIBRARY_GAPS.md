@@ -27,11 +27,15 @@ for API details and copied-example setup.
 ## Current website integration
 
 The legacy Script execution and candidate-building lessons now call the local
-package. Native Anatomy, signing, and propagation retain their existing behavior.
-The native execution, exact-preimage, and commitment helpers have also been
-migrated and tested in CPython and WebAssembly; connecting them to the remaining
-native screens is a separate UI integration step, not a missing library release.
-See the [native integration plan](docs/native-p2wpkh-library-requirements.md).
+package. Both spend examples now cover the complete seven-stage website journey.
+Native execution uses witness loading, the implied P2PKH scriptCode, and BIP143
+with all six exposed SIGHASH modes. The signing explorer exposes the exact
+preimage and component inputs. Candidate construction selects by virtual size,
+adds a witness commitment when selected transactions contain witness data, and
+passes the final coinbase-based TXID root into mining and modeled block relay.
+Adapter tests check execution experiments, both trees, commitment bytes,
+selection/omission, and mining-header linkage in CPython and WebAssembly.
+See the [native integration notes](docs/native-p2wpkh-library-requirements.md).
 
 ## Model boundaries
 
