@@ -2,12 +2,12 @@ import type { SighashPreview, SighashType } from './types';
 import { Bip143Explorer } from './Bip143Explorer';
 
 type Props = {
-  index: number; mode: SighashType; native: boolean; outputCount: number;
+  index: number; mode: SighashType; native: boolean; multisig?: boolean; outputCount: number;
   expanded: boolean; toggle: () => void; change: (mode: SighashType) => void;
   preview?: SighashPreview['inputs'][number]; pendingMessage: string;
 };
 
-export function SighashExplorer({ index, mode, native, outputCount, expanded, toggle, change, preview, pendingMessage }: Props) {
+export function SighashExplorer({ index, mode, native, multisig, outputCount, expanded, toggle, change, preview, pendingMessage }: Props) {
   const base = mode & 31;
   const anyone = Boolean(mode & 128);
   const label = `${base === 1 ? 'ALL' : base === 2 ? 'NONE' : 'SINGLE'}${anyone ? ' + ANYONECANPAY' : ''}`;
@@ -31,7 +31,7 @@ export function SighashExplorer({ index, mode, native, outputCount, expanded, to
           <div><span>Input outpoints</span><strong>{preview.inputScope}</strong></div>
           <div><span>Input sequences</span><strong>{preview.sequenceScope}</strong></div>
           <div><span>Output amounts + locking scripts</span><strong>{preview.outputScope}</strong></div>
-          <div><span>Current input’s scriptCode</span><strong>{native ? 'P2PKH-style script from the witness program' : 'Previous locking script'}</strong></div>
+          <div><span>Current input’s scriptCode</span><strong>{native ? 'P2PKH-style script from the witness program' : multisig ? 'Revealed multisig redeem script' : 'Previous locking script'}</strong></div>
           <div><span>Previous input amounts</span><strong>{preview.amountScope}</strong></div>
         </div>
         <p className="tx-sighash-note">{native

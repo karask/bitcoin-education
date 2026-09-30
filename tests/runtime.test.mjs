@@ -166,3 +166,9 @@ test('native journey screen requests and experiments match CPython through witne
     }
   }
 });
+
+
+test('P2SH multisig journey, legacy scopes, and execution experiments match CPython in WebAssembly', () => {
+  const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_p2sh_transactions import wasm_vectors;print(json.dumps(wasm_vectors()))"], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
+  for (const vector of vectors) assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);
+});

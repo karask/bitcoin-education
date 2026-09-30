@@ -20,3 +20,6 @@
 .execution-verdict { margin: 20px 0; border-left: 3px solid var(--accent); padding: 16px; background: var(--accent-soft); }
 .execution-verdict.passed { border-color: var(--green); background: var(--green-soft); }
 @media(max-width:700px) { .execution-stacks { grid-template-columns: 1fr; } .execution-lesson { padding: 16px; } }
+
+.execution-digest table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.execution-digest th, .execution-digest td { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; }

@@ -11,7 +11,7 @@ The complete educational package from python-bitcoin-utils commit `71ff0ec` is
 now maintained in this project, with its MIT license, dedicated tests, and
 historical block fixture. It contains:
 
-- Scoped P2PKH and native P2WPKH execution traces.
+- Scoped P2PKH, P2SH multisig, and native P2WPKH execution traces.
 - BIP143 preimage, component hashes, and byte ranges; each digest is checked
   against the core transaction signer.
 - Subsidy and BIP34 coinbase construction helpers.
@@ -27,8 +27,11 @@ for API details and copied-example setup.
 ## Current website integration
 
 The legacy Script execution and candidate-building lessons now call the local
-package. Both spend examples now cover the complete seven-stage website journey.
-Native execution uses witness loading, the implied P2PKH scriptCode, and BIP143
+package. All three spend examples cover the complete seven-stage website journey.
+P2SH execution checks the redeem-script commitment, restores the signature
+stack, and evaluates a canonical m-of-3 rule with ordered signature matching
+and NULLDUMMY. It supports all six exposed legacy SIGHASH modes, with other
+redeem scripts and low-S policy outside its scope. Native execution uses witness loading, the implied P2PKH scriptCode, and BIP143
 with all six exposed SIGHASH modes. The signing explorer exposes the exact
 preimage and component inputs. Candidate construction selects by virtual size,
 adds a witness commitment when selected transactions contain witness data, and

@@ -20,6 +20,34 @@ consensus, or policy validator. It supports only a two-push P2PKH `scriptSig`,
 the standard P2PKH locking script, and legacy `SIGHASH_ALL`. The caller must
 supply the previous output script; existence and unspent status are not checked.
 
+## Legacy P2SH multisig execution
+
+```python
+from bitcoin_education import trace_p2sh_input
+
+result = trace_p2sh_input(transaction, 0, previous_p2sh_script_pubkey)
+```
+
+The scope is a canonical 1, 2, or 3-of-3 compressed-key redeem script with
+three distinct valid keys and exactly the required signatures. The helper
+traces scriptSig data pushes, HASH160/EQUAL, BIP16 stack restoration, then
+redeem-script pushes and CHECKMULTISIG. The redeem script is the legacy
+signing scriptCode. All six exposed SIGHASH modes are supported; NULLDUMMY
+requires the extra consumed item to be empty. A successful final stack is
+`["01"]`. `redeem_script`, `required`, and `public_keys` identify the rule.
+`checks` lists each signature/key attempt, digest, sighash mode, and match
+result; CHECKMULTISIG also exposes these attempts on its instruction step.
+Caller transactions and scripts are never mutated.
+
+This is a teaching evaluator, not a general P2SH interpreter. Other redeem
+scripts, additional stack items, uncompressed keys, full consensus/policy
+checks, and on-chain UTXO validation are outside its scope. The website
+rejects legacy SINGLE without a corresponding output before signing.
+The helper reports malformed DER, non-push scriptSig, hash mismatch, missing
+signatures, incorrect ordering, and nonempty dummy as structured failures.
+See [BIP16](https://github.com/bitcoin/bips/blob/master/bip-0016.mediawiki)
+and [BIP147](https://github.com/bitcoin/bips/blob/master/bip-0147.mediawiki).
+
 ## Native P2WPKH execution
 
 ```python

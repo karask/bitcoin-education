@@ -7,7 +7,7 @@
 .tx-section-heading h2, .tx-card-heading h2 { margin: 0; font-size: 18px; font-weight: 500; }
 .tx-network { display: flex; align-items: center; gap: 12px; margin: 24px 0 12px; font-size: 12px; flex-wrap: wrap; }
 .tx-network > span { color: var(--muted); font-size: 11px; }
-.transaction-lesson select, .transaction-lesson input { color: var(--text); background: var(--input-bg); border: 1px solid var(--line); border-radius: 6px; padding: 11px; min-width: 0; }
+.transaction-lesson select, .transaction-lesson input, .transaction-lesson textarea { color: var(--text); background: var(--input-bg); border: 1px solid var(--line); border-radius: 6px; padding: 11px; min-width: 0; }
 .tx-context { color: var(--muted); font-size: 12px; line-height: 1.8; }
 .tx-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 20px; align-items: start; }
 .tx-edit-panel { min-width: 0; padding: 20px; }
@@ -146,3 +146,5 @@
   .tx-spend-selector { padding: 16px; }
   .tx-spend-options { flex-direction: column; }
 }
+
+.tx-entry textarea { width: 100%; resize: vertical; font: 11px/1.8 'JetBrains Mono', monospace; overflow-wrap: anywhere; }
