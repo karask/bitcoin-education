@@ -27,7 +27,7 @@ for API details and copied-example setup.
 ## Current website integration
 
 The legacy Script execution and candidate-building lessons now call the local
-package. All five spend examples cover the complete seven-stage website journey.
+package. All seven spend examples cover the complete seven-stage website journey.
 P2SH execution checks the redeem-script commitment, restores the signature
 stack, and evaluates a canonical m-of-3 rule with ordered signature matching
 and NULLDUMMY. It supports all six exposed legacy SIGHASH modes, with other
@@ -45,7 +45,7 @@ See the [native integration notes](docs/native-p2wpkh-library-requirements.md).
 P2WSH validates the SHA256 commitment, loads witness data, and shares the scoped
 ordered CHECKMULTISIG engine with P2SH, using BIP143 and the supplied amount.
 Nested P2SH-P2WPKH validates the outer HASH160 and single pushed program, then
-uses the P2WPKH witness evaluator on a copy. All SegWit paths require aligned
+uses the P2WPKH witness evaluator on a copy. All SegWit v0 paths require aligned
 witness slots, support six BIP143 modes, and check a single true final item.
 The core raw Script parser normalizes pushes, so the nested object trace does
 not claim byte-level push canonicality or full consensus validation.
@@ -55,6 +55,24 @@ arguments. The website's `p2wsh_address_to_script` uses the core Bech32 decoder,
 checks the current network, witness version zero and 32-byte program, then
 constructs the Script. It appears in copied examples and is covered in both
 Python runtimes. Core address generation from a witness script still works.
+
+## Taproot integration
+
+The local `taproot` module uses core Schnorr signing/verification, BIP341 digest
+calculation, key tweaking, TapLeaf/TapBranch hashing and control-block generation.
+It annotates the exact BIP341 message and checks its digest against core. The
+version-1 address decoder enforces network, Bech32m checksum and 32-byte program.
+The no-tree payment and fixed two/three-leaf examples share the existing seven
+journey stages. The scoped evaluator supports the seven modes, key path and
+three known c0 leaves, including NULLFAIL and one true final stack item.
+Relative recovery additionally checks supplied UTXO age against block sequence.
+No annex, code separators, arbitrary scripts, upgrade leaf versions or full node
+validation are claimed. Script checks are grouped for presentation.
+
+The official BIP341 signing fixture contains a nonstandard output whose Script
+object is normalized by the pinned raw parser. Tests preserve that original
+wire script before comparing official messages/signatures. Website transaction
+outputs are canonical P2TR scripts and round-trip through the core parser.
 
 ## Model boundaries
 

@@ -1,9 +1,11 @@
 import { ArrowRight } from 'lucide-react';
 import type { TransactionResult } from './types';
+import { TaprootSigning } from './TaprootLab';
 
 export function SigningWalkthrough({ data }: { data: TransactionResult }) {
   const signing = data.signing;
   if (!signing) return null;
+  if (data.spendType === 'p2tr' || data.spendType === 'p2tr-script') return <TaprootSigning data={data} />;
   const wsh = data.spendType === 'p2wsh';
   const nested = data.spendType === 'nested';
   const segwit = ['p2wpkh', 'p2wsh', 'nested'].includes(data.spendType);

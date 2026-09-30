@@ -3,7 +3,7 @@
 A local, browser-native Bitcoin learning lab. Seven address lessons cover legacy,
 script-hash, SegWit, nested SegWit, Taproot, and address comparisons with real
 Python, synchronized pseudocode, and annotated bytes. Both light and dark themes
-are included. A transaction lab builds and signs P2PKH, P2SH multisig, native P2WPKH, native P2WSH multisig, and P2SH-P2WPKH transactions from editable
+are included. A transaction lab builds and signs P2PKH, P2SH multisig, native P2WPKH, native P2WSH multisig, P2SH-P2WPKH, Taproot key-path, and Taproot script-path transactions from editable
 UTXOs and outputs, with a field-by-field hex explorer and runnable Python.
 
 ## Learning path
@@ -25,31 +25,31 @@ Append a lesson fragment to `/bitcoin-education/`:
 | `#p2tr` | X-only internal key → TapTweak → output key → Bech32m |
 | `#compare` | Six address constructions and locking scripts from one key |
 | `#transaction` | Transaction anatomy: UTXOs, outputs, fees, unsigned bytes |
-| `#signing` | Legacy/BIP143 digests, signatures, scriptSigs/witnesses, signed bytes |
-| `#execution` | Five spending examples with stack traces and failure experiments |
+| `#signing` | Legacy/BIP143/BIP341 digests, signatures, scriptSigs/witnesses, signed bytes |
+| `#execution` | Seven spending examples with stack traces and failure experiments |
 | `#propagation` | Node relay and separate local mempools |
 | `#construction` | Candidate selection, BIP34 coinbase, Merkle tree |
 | `#mining` | Candidate-root header hashing and nonce attempts |
 | `#blocks` | Compact block relay and modeled confirmations |
 
 SegWit inputs use compressed SEC public keys. Taproot starts from a compressed
-SEC key and explains its x-only interpretation; this example has no script
-tree. The comparison lab uses `<key> OP_CHECKSIG` for P2SH and P2WSH, making
+SEC key and explains its x-only interpretation; the address example has no script
+tree. Transactions adds both a no-tree payment and a tree with two or three script leaves. The comparison lab uses `<key> OP_CHECKSIG` for P2SH and P2WSH, making
 their common one-key input explicit rather than silently adding multisig keys.
 
 The transaction lab accepts 1–20 inputs and outputs, integer satoshi amounts,
 and mainnet or testnet addresses matching the selected spend example. Previous
-locks can also be supplied as standard P2PKH, P2SH, P2WPKH, or P2WSH script hex. Each example
+locks can also be supplied as standard P2PKH, P2SH, P2WPKH, P2WSH, or P2TR script hex. Each example
 uses the same type for its outputs; mixed input/output types are not exposed yet. UTXO existence and unspent status are not checked.
-The example outpoint is fictional. Version 2, final sequences, zero locktime,
+The example outpoint is fictional. Version 2, final sequences (editable for Taproot), zero locktime,
 and initially empty scriptSigs keep the construction focused on transaction structure.
 Previous amounts and scripts are metadata, not serialized input fields. Fees
 use supplied amounts; unsigned byte size is not a signed fee-rate estimate.
 
 The signing action uses `PrivateKey.sign_input` for legacy P2PKH/P2SH or `sign_segwit_input`
-for all three SegWit examples. SIGHASH_ALL is the default. A collapsed explorer before signing
+for the three SegWit v0 examples. Taproot uses `sign_taproot_input`. SIGHASH_ALL is the legacy/v0 default; Taproot uses SIGHASH_DEFAULT. A collapsed explorer before signing
 lets each input choose ALL, NONE, SINGLE, or any of those with ANYONECANPAY,
-and shows the committed fields and actual library digest. All five examples expose
+and shows the committed fields and actual library digest. Taproot adds DEFAULT. All seven examples expose
 the exact signing preimage. The native explorer shows
 ordered BIP143 byte fields, the three component hashes and their serialized
 inputs, and which components are zero by the selected SIGHASH rule.
@@ -74,14 +74,15 @@ witness as stack data, then executes the implied P2PKH scriptCode using BIP143
 and the supplied previous amount. Its verdict includes the clean-stack check.
 Experiments change a public key, signature byte, or output on a separate copy;
 native also offers a wrong-amount experiment. Output edits respect the selected
-SIGHASH scope. Legacy P2PKH execution supports SIGHASH_ALL; P2SH and all SegWit examples support all six
-exposed modes, including SINGLE without a corresponding output. Compressed
+SIGHASH scope. Legacy P2PKH execution supports SIGHASH_ALL; P2SH supports six legacy modes, and the three SegWit v0 examples support six BIP143
+modes including SINGLE without a corresponding output. Taproot supports seven
+modes and requires a matching SINGLE output. Compressed
 keys are a scope/default-policy restriction for the native tracer; low-S and
-NULLFAIL checks are not implemented. Neither evaluator provides full node
+NULLFAIL checks are not implemented by the v0 tracers. These scoped evaluators do not provide full node
 validation, on-chain UTXO checks, or broadcasting.
 
-One set of seven transaction menu items serves all five spend examples. A compact
-selector follows Addresses order: Legacy P2PKH → P2SH multisig → Native P2WPKH → Native P2WSH → Nested SegWit while preserving each
+One set of seven transaction menu items serves all seven spend examples. A compact
+selector follows Addresses order: Legacy P2PKH → P2SH multisig → Native P2WPKH → Native P2WSH → Nested SegWit → Taproot payment → Taproot scripts while preserving each
 example’s in-memory draft and results, including across address lessons. Next-step
 links connect Anatomy → Signing → Script execution → Propagation → Block construction → Mining → Block propagation.
 Directly opening a later
@@ -91,7 +92,7 @@ In Propagation, play or step through modeled announcements,
 requests, receipts, and admission. Select any of five nodes to inspect its own
 mempool; change C's illustrative fee threshold, remove a referenced output at
 C, or disconnect E. Added fee competition affects only the selected snapshot.
-All five examples use the same relay diagram and mempool model. The scene uses
+All seven examples use the same relay diagram and mempool model. The scene uses
 actual TXID/WTXID, signed bytes (including witnesses), virtual size, assumed
 starting UTXOs, and explicitly modeled validation. Connections are assumed to
 have negotiated BIP339 wtxidrelay; inv/getdata use MSG_WTX. No real network broadcast takes place, and the
@@ -114,7 +115,7 @@ The native block relay explains compact-block version 2, WTXID-based short IDs,
 witness-bearing transaction delivery, and modeled witness-commitment checks.
 The complete former library learning package, including newer native helpers,
 now lives in `public/python/bitcoin_education`. Its tests and MIT license moved
-with it. All five spend examples connect Anatomy → Signing → Script execution →
+with it. All seven spend examples connect Anatomy → Signing → Script execution →
 Propagation → Block construction → Mining → Block propagation. The native
 execution, exact-preimage, and witness-commitment screens use these local APIs,
 without requiring a library release.
@@ -180,6 +181,51 @@ The local `p2wsh_address_to_script` uses the core Bech32 decoder with explicit
 network/version/32-byte checks. Copied Python includes this helper; the library
 wheel remains intact. See [model boundaries](LIBRARY_GAPS.md).
 
+## Taproot transaction examples
+
+**Taproot payment** uses an x-only internal public key, a no-tree TapTweak,
+and `PrivateKey.sign_taproot_input`. DEFAULT commits to all previous amounts,
+locks and sequences and every output. The exact epoch/SigMsg fields are shown
+before signing and checked against the core BIP341 digest. A default witness
+has one 64-byte Schnorr signature; explicit nonzero modes use 65 bytes. TXID
+excludes witness; WTXID, weight and vsize include it.
+
+**Taproot scripts** starts with two fixed c0 Tapscript leaves: 2-of-3 co-signers
+(public scalars 2, 3 and 4) using CHECKSIG/CHECKSIGADD/NUMEQUAL, and key 5 recovery
+after 144 blocks using CHECKSEQUENCEVERIFY. An optional third leaf requires
+key 6 plus the hex secret “bit by bit”. The tree is `[co-signers, recovery]`
+or `[co-signers, [recovery, secret]]`, so the explorer also shows different
+proof depths. These are alternatives; public internal key 1 retains an immediate
+key path that can bypass all leaves. This intentionally illustrates Taproot's
+key/script distinction rather than a script-only vault policy.
+
+The interactive explorer shows TapLeaf hashes, the root, tweak, output key,
+control-block sibling hashes and per-input witness sizes. Selecting a different
+tree updates the example lock and matching change address. Each chosen leaf
+reveals its script and control block, keeping other scripts hidden.
+All seven SIGHASH modes work on key and script paths; SINGLE requires a matching
+output. Non-ANYONECANPAY signatures commit to all previous input amounts, locks
+and sequences even for NONE/SINGLE. Script signing uses untweaked leaf keys and
+a TapLeaf extension. There is no CHECKMULTISIG dummy.
+
+`bitcoin_education.taproot.trace_taproot_input` validates the output-key Schnorr
+signature, or reconstructs the script commitment and evaluates only the three
+fixed leaves. Explained checks group script operations. Recovery checks version,
+sequence flags/type/value and a caller-supplied block-age model; 144 means blocks
+elapsed after the modeled UTXO confirms, not a guaranteed wall-clock day. Proof,
+leaf, signature, amount, signature-slot order/count, early recovery and wrong-secret
+experiments operate on copies. No annex, code separator, upgrade leaves, arbitrary
+Tapscript or full contextual node validation is provided. The downstream relay,
+block selection and confirmation lessons remain explicitly modeled.
+
+Tests include the published BIP341 wallet signing messages and signatures,
+independent tagged leaf/root hashes, all co-signer subsets, timelock boundaries,
+invalid signature encodings, all SIGHASH scopes, copied Python, and both runtime
+implementations through candidate witness commitments and mining.
+The official fixture is from [BIP341 wallet test vectors](https://github.com/bitcoin/bips/blob/master/bip-0341/wallet-test-vectors.json).
+The pinned core parser normalizes a nonstandard output script in that fixture;
+the reference test preserves its exact wire bytes before checking SINGLE.
+
 ## Start locally
 
 Requires Node.js 22.12+ and Python 3.10+ for the one-time asset setup and tests.
@@ -240,7 +286,7 @@ by an organization policy, use **Settings → Pages → Source → GitHub Action
 - React and TypeScript handle presentation, navigation, and animation.
 - One module Web Worker owns Pyodide and serializes Python operations.
 - `public/python/lesson_adapter.py` composes core library APIs and local helpers.
-  The exact Python snippets it executes are sent to the code panel.
+  Replayable Python construction and validation calls are sent to the code panel.
 - `public/python/bitcoin_education` owns educational Script evaluators, Sighash
   traces, and coinbase/Merkle walkthroughs. It is part of this website, with no
   imports from `bitcoinutils.learning`.

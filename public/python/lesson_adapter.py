@@ -423,6 +423,9 @@ def selected_sighash(row, index, output_count, spend_type="p2pkh"):
 
 def trace_sighash(request):
     """Preview the signing digest, exact preimage, and scope before signing."""
+    if request['transaction'].get('spendType') in ('p2tr', 'p2tr-script'):
+        from bitcoin_education.taproot import preview_taproot
+        return preview_taproot(request)
     from bitcoinutils.constants import EMPTY_TX_SEQUENCE, NEGATIVE_SATOSHI, SIGHASH_ANYONECANPAY
     from bitcoinutils.transactions import Transaction, TxOutput
     import struct
@@ -489,6 +492,9 @@ def trace_sighash(request):
 
 def trace_transaction(request):
     """Library serialization with presentation-only offsets and strict form validation."""
+    if request.get('transaction', {}).get('spendType') in ('p2tr', 'p2tr-script'):
+        from bitcoin_education.taproot import trace_taproot_transaction
+        return trace_taproot_transaction(request)
     import re
     from bitcoinutils.utils import encode_varint
 
@@ -940,6 +946,9 @@ def trace_mining(request):
 
 
 def trace_execution(request):
+    if request['execution'].get('spendType') in ('p2tr', 'p2tr-script'):
+        from bitcoin_education.taproot import execution_taproot
+        return execution_taproot(request)
     options = request['execution']
     index = options['inputIndex']
     if type(index) is not int or index < 0:

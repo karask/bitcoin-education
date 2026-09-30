@@ -13,3 +13,8 @@ remain in their npm packages or Python wheel distributions.
 - base58check: MIT; ecdsa: MIT; SymPy: BSD; six: MIT; mpmath: BSD.
 
 Fonts are bundled locally; no requests are sent to a font provider.
+
+The BIP341 wallet test fixture in `tests/fixtures/bip341-wallet-test-vectors.json`
+is reproduced from the Bitcoin BIPs repository's `bip-0341/wallet-test-vectors.json`.
+BIP341 is licensed under the 3-clause BSD license, as stated in the specification:
+<https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki>.

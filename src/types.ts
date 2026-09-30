@@ -3,8 +3,14 @@ export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
 export type TransactionPage = 'transaction' | 'signing' | 'execution' | 'propagation' | 'construction' | 'mining' | 'blocks';
 export type LessonKind = 'home' | 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
-export type SpendType = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested';
-export type SighashType = 1 | 2 | 3 | 129 | 130 | 131;
+export type SpendType = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'p2tr-script';
+export type SighashType = 0 | 1 | 2 | 3 | 129 | 130 | 131;
+export type TaprootPath = 'key' | 'multisig' | 'recovery' | 'hashlock';
+export interface TaprootTree {
+  internalKey: string; merkleRoot: string; tweak: string; outputKey: string; address: string;
+  leafCount: number; path: TaprootPath; branchHash?: string | null; keyWitnessBytes?: number;
+  leaves: { path: TaprootPath; label: string; script: string; leafHash: string; controlBlock: string; proof: string[]; witnessBytes: number }[];
+}
 export interface Bip143Trace {
   fields: { name: string; start: number; end: number; size: number; hex: string }[];
   hashPrevouts: string; hashSequence: string; hashOutputs: string;
@@ -13,7 +19,7 @@ export interface Bip143Trace {
 }
 export interface SighashPreview {
   spendType: SpendType;
-  inputs: { type: SighashType; name: string; digest: string; preimage: string | null; algorithm: 'Legacy' | 'BIP143'; amountScope: string; inputScope: string; sequenceScope: string; outputScope: string; script: string; bip143?: Bip143Trace; python?: string }[];
+  inputs: { type: SighashType; name: string; digest: string; preimage: string | null; algorithm: 'Legacy' | 'BIP143' | 'BIP341'; amountScope: string; inputScope: string; sequenceScope: string; outputScope: string; script: string; bip143?: Bip143Trace; taproot?: { fields: { name: string; start: number; end: number; hex: string; source?: string; description: string }[]; preimage: string; tag: string }; python?: string }[];
 }
 export interface MerkleTrace {
   txids: string[]; levels: string[][]; levels_internal: string[][];
@@ -43,7 +49,7 @@ export interface MiningResult {
 
 export interface TransactionDraft {
   spendType?: SpendType;
-  inputs: { txid: string; vout: string; amount: string; source: string; sourceType: 'address' | 'script'; privateKey?: string; compressed?: boolean; sighashType?: SighashType; redeemScript?: string; witnessScript?: string; signerKeys?: string[] }[];
+  inputs: { txid: string; vout: string; amount: string; source: string; sourceType: 'address' | 'script'; privateKey?: string; compressed?: boolean; sighashType?: SighashType; redeemScript?: string; witnessScript?: string; signerKeys?: string[]; taprootPath?: TaprootPath; taprootLeaves?: 2 | 3; internalKey?: string; secret?: string; sequence?: string }[];
   outputs: { address: string; amount: string }[];
 }
 export interface TransactionResult {
@@ -54,14 +60,15 @@ export interface TransactionResult {
   previousScripts: string[];
   fields: (ByteField & { category: string; python: string })[];
   python: string;
+  taproot?: TaprootTree[];
   signing?: {
     unsignedHex: string; unsignedTxid: string; txid: string; unsignedBytes: number;
-    inputs: { signatures?: string[]; publicKeys?: string[]; signerIndexes?: number[]; redeemScript?: string; witnessScript?: string; required?: number; digest: string; signature: string; publicKey: string; scriptSig: string; witness: string[]; python: string; sighashType: SighashType; sighashName: string }[];
+    inputs: { signatures?: string[]; publicKeys?: string[]; signerIndexes?: number[]; redeemScript?: string; witnessScript?: string; required?: number; digest: string; signature: string; publicKey: string; scriptSig: string; witness: string[]; python: string; sighashType: SighashType; sighashName: string; taprootPath?: TaprootPath; tapleafScript?: string; controlBlock?: string }[];
   };
 }
 
 export interface LessonInput {
-  execution?: { hex: string; previousScript: string; inputIndex: number; experiment: string; spendType: SpendType; amount: number };
+  execution?: { hex: string; previousScript: string; inputIndex: number; experiment: string; spendType: SpendType; amount: number; previousScripts?: string[]; amounts?: number[]; age?: number };
   mining?: { startNonce: number; difficulty: 'easy' | 'harder'; count: number; merkleRoot: string };
   candidate?: { hex: string; fee: number; budget: number; height: number; include: boolean; network: Network };
   signTransaction?: boolean;

@@ -256,3 +256,41 @@ From this repository root, use `PYTHONPATH=public/python python3 your_example.py
 to run copied examples with `bitcoin-utils` installed. The browser loads the same
 source files listed in `public/python/manifest.json`. Its dependency wheel is
 kept intact; no `bitcoinutils.learning` imports are used.
+
+## Taproot payment and fixed script tree
+
+```python
+from bitcoin_education import trace_taproot_sighash, trace_taproot_input
+
+# Metadata for every previous output, in input order. No chain lookup occurs.
+message = trace_taproot_sighash(tx, 0, previous_scripts, amounts, mode=0)
+result = trace_taproot_input(tx, 0, previous_scripts, amounts, age=144)
+```
+
+`trace_taproot_sighash` annotates epoch + SigMsg and, when `script` is supplied,
+the c0 TapLeaf/key-version/code-separator extension. Each digest must match the
+core `Transaction.get_transaction_taproot_digest`. Seven hash types are supported:
+0, 1, 2, 3, 129, 130, 131. SINGLE without a matching output is rejected. There is
+no annex or executed code separator. Component hashes use single SHA256, with a
+final TapSighash tagged hash. Non-ANYONECANPAY commits to every input's amount,
+previous script and sequence, including NONE/SINGLE.
+
+`taproot_template(2)` returns internal key 1, the canonical leaf list and
+`[co-signers, recovery]`; `taproot_template(3)` returns
+`[co-signers, [recovery, secret]]`. Public learning keys 2/3/4 form the
+CHECKSIG/CHECKSIGADD/NUMEQUAL 2-of-3 leaf; key 5 controls recovery after 144 blocks;
+key 6 plus the bytes `62697420627920626974` controls the secret leaf. Key 1 also
+retains unrestricted key-path spending. Build these as educational alternatives,
+not as a claim that all output spends require co-signers or a timelock.
+
+The evaluator verifies a key-path signature directly against the output key,
+or checks control-block length, leaf version, root/output-key/parity and then
+recognizes one of these exact leaf scripts. Invalid nonempty signatures fail;
+empty co-signer slots contribute zero. It does not mutate the input transaction.
+Each result carries explained checks and before/after stacks; multiple primitive
+script operations are grouped into one check. Recovery tests block-type CSV and
+supplied age against the sequence's low 16 bits. `age` is blocks elapsed since
+the modeled UTXO confirmation, not wall-clock time. All UTXO metadata is assumed.
+Other leaves, annexes, code separators and complete consensus/policy are out of
+scope. `taproot_address_to_script` checks a Bech32m v1/32-byte address on the active
+network with the core decoder. Signing, crypto, and serialization remain core APIs.

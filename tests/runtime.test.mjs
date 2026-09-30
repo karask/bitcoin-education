@@ -179,3 +179,10 @@ test('P2WSH and Nested SegWit complete journeys match CPython in WebAssembly', (
     assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);
   }
 });
+
+test('Taproot key and script paths match CPython through signing, proofs, timelocks, and block commitments', () => {
+  const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_taproot_transactions import wasm_vectors;print(json.dumps(wasm_vectors()))"], { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }));
+  for (const vector of vectors) {
+    assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);
+  }
+});

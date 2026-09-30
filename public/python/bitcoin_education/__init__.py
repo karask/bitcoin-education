@@ -11,6 +11,7 @@ from bitcoin_education.p2wsh import trace_p2wsh_input
 from bitcoin_education.nested import trace_nested_p2wpkh_input
 from bitcoin_education.p2wpkh import trace_p2wpkh_input
 from bitcoin_education.segwit_block import create_segwit_coinbase_transaction
+from bitcoin_education.taproot import trace_taproot_input, trace_taproot_sighash
 from bitcoin_education.sighash import trace_segwit_v0_sighash
 
 __all__ = [
@@ -24,4 +25,6 @@ __all__ = [
     "trace_nested_p2wpkh_input",
     "create_segwit_coinbase_transaction",
     "trace_segwit_v0_sighash",
+    "trace_taproot_input",
+    "trace_taproot_sighash",
 ]
