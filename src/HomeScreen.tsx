@@ -1,4 +1,4 @@
-import { ArrowRight, Blocks, Fingerprint, FlaskConical, KeyRound, MousePointer2, Play, ScanLine, Sparkles } from 'lucide-react';
+import { ArrowRight, Blocks, Fingerprint, FlaskConical, KeyRound, MousePointer2, Play, ScanLine, Scale, Sparkles } from 'lucide-react';
 import './home.css';
 
 export function HomeScreen() {
@@ -29,6 +29,7 @@ export function HomeScreen() {
       </a>
     </section>
 
+    <a className="home-comparison" href="#tx-compare"><Scale size={24} /><div><strong>Same payment. Different footprints.</strong><span>Compare transaction types, weigh their bytes, and try your own fee rate.</span></div><span className="home-comparison-cta">Try the comparison lab<ArrowRight size={16} /></span></a>
     <section className="home-playbook" aria-label="How to explore">
       <div><MousePointer2 size={18} /><p><strong>Change it.</strong><span>Try an input of your own.</span></p></div>
       <div><Play size={18} /><p><strong>Play it.</strong><span>Watch each step unfold.</span></p></div>

@@ -355,3 +355,28 @@ The application uses React, Vite, TypeScript, Lucide icons, DM Sans, JetBrains
 Mono, Pyodide, and the Python packages listed above. Their licenses are retained
 in installed packages; Python wheel metadata and license files are preserved
 when vendoring. See `THIRD_PARTY_NOTICES.md` for the primary license references.
+
+### Transaction comparison lab
+
+Open `#tx-compare` from Transactions or the home page. Compare compressed-key
+P2PKH, P2WPKH, P2SH-P2WPKH and Taproot key-path payments, or compare P2SH,
+P2WSH and Taproot 2-of-3 script spends. Every row uses identical outpoints,
+amounts and P2WPKH output scripts. Choose 1, 2 or 5 inputs and one output or a
+payment plus change. The multisig participants are learning keys 2, 3 and 4;
+Taproot spends the co-signer leaf of the existing two-leaf tree and also has
+its key and recovery paths. The UI explains this policy difference.
+
+Sizes, unlocking stacks, weight, virtual size and IDs come from signed Python
+transactions. Switch between serialized bytes and virtual size, inspect what
+is revealed, and flip a signature byte to compare independently calculated
+TXID/WTXID results. The edited signature is deliberately invalid. Fee quotes
+use a user-chosen hypothetical rate and round up to whole satoshis with decimal
+integer arithmetic. They do not rewrite the fixed 1,000-sat reference fee or
+estimate current network fees. Exact transaction bytes and reproducible Python
+are available for every row.
+
+The comparison's ECDSA signatures are re-encoded with the existing `ecdsa` DER
+encoder to remove unnecessary zero padding from the pinned core library's low-S
+conversion. The signature integers and sighash are preserved. Tests independently
+parse CompactSize and wire sections, hash IDs, execute every input, replay the
+Python, check decimal fee rounding, and compare CPython with Pyodide results.

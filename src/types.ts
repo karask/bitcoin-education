@@ -2,7 +2,7 @@ export type Network = 'mainnet' | 'testnet';
 export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
 export type TransactionPage = 'transaction' | 'signing' | 'execution' | 'propagation' | 'construction' | 'mining' | 'blocks';
-export type LessonKind = 'home' | 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
+export type LessonKind = 'home' | 'tx-compare' | 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
 export type SpendType = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'p2tr-script';
 export type SighashType = 0 | 1 | 2 | 3 | 129 | 130 | 131;
 export type TaprootPath = 'key' | 'multisig' | 'recovery' | 'hashlock';
@@ -67,7 +67,20 @@ export interface TransactionResult {
   };
 }
 
+export interface TransactionComparisonResult {
+  group: 'single' | 'multisig'; inputs: number; outputs: number; totalInput: number;
+  payment: number; change: number; referenceFee: number; outputScripts: string[];
+  rows: { type: SpendType; label: string; reveals: string; hasWitness: boolean;
+    baseSize: number; totalSize: number; weight: number; vsize: number;
+    scriptSigBytes: number; witnessBytes: number; txid: string; wtxid: string;
+    unsignedTxid: string; hex: string; python: string; inputLock: string;
+    input: NonNullable<TransactionResult['signing']>['inputs'][number];
+    mutation: { field: string; byteOffset: number; before: string; after: string; txid: string; wtxid: string };
+  }[];
+}
+
 export interface LessonInput {
+  transactionComparison?: { group: 'single' | 'multisig'; inputs: number; outputs: number };
   execution?: { hex: string; previousScript: string; inputIndex: number; experiment: string; spendType: SpendType; amount: number; previousScripts?: string[]; amounts?: number[]; age?: number };
   mining?: { startNonce: number; difficulty: 'easy' | 'harder'; count: number; merkleRoot: string };
   candidate?: { hex: string; fee: number; budget: number; height: number; include: boolean; network: Network };
@@ -105,6 +118,7 @@ export interface StepResult {
 }
 
 export interface LessonTrace {
+  transactionComparison?: TransactionComparisonResult;
   execution?: { success: boolean; final_stack: string[]; error: {code: string; message: string} | null; python: string; sighash: string | null; redeem_script?: string; witness_script?: string; required?: number; public_keys?: string[]; checks?: { signature: number; publicKey: number; digest: string; sighash: string; valid: boolean }[]; amount?: number; witness_program?: string; script_code?: string; clean_stack?: boolean; steps: {phase: string; instruction: string; kind?: string; stack_before: string[]; stack_after: string[]; error: string | null; digest?: string; signature_valid?: boolean; checks?: { signature: number; publicKey: number; digest: string; sighash: string; valid: boolean }[]}[] };
   mining?: MiningResult;
   candidate?: CandidateResult;

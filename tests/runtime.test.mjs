@@ -186,3 +186,9 @@ test('Taproot key and script paths match CPython through signing, proofs, timelo
     assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);
   }
 });
+
+test('transaction comparison sizes, ID edits and signed bytes match CPython in WebAssembly', () => {
+  const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_transaction_comparison import wasm_vectors;print(json.dumps(wasm_vectors()))"], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
+  for (const vector of vectors) assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);
+  assert.throws(() => adapter.trace_lesson(JSON.stringify({kind:'tx-compare',network:'mainnet',transactionComparison:{group:'single',inputs:3,outputs:2}})), /ValueError/);
+});

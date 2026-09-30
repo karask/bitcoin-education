@@ -490,11 +490,11 @@ def trace_sighash(request):
                 pythonPreamble='', sighash=dict(spendType=spend_type, inputs=previews))
 
 
-def trace_transaction(request):
+def trace_transaction(request, common_outputs=False):
     """Library serialization with presentation-only offsets and strict form validation."""
     if request.get('transaction', {}).get('spendType') in ('p2tr', 'p2tr-script'):
         from bitcoin_education.taproot import trace_taproot_transaction
-        return trace_taproot_transaction(request)
+        return trace_taproot_transaction(request, common_outputs=common_outputs)
     import re
     from bitcoinutils.utils import encode_varint
 
@@ -543,6 +543,8 @@ def trace_transaction(request):
     preamble = ('from bitcoinutils.setup import setup\nfrom bitcoinutils.keys import P2pkhAddress, P2shAddress, P2wpkhAddress, P2wshAddress\n'
                 'from bitcoinutils.script import Script\nfrom bitcoinutils.transactions import Transaction, TxInput, TxOutput, TxWitnessInput\n'
                 f'setup({network!r})')
+    if common_outputs:
+        preamble += '\nfrom bitcoin_education.comparison import canonical_ecdsa_signature'
     namespace = {}
     exec(preamble, namespace)
     if wsh:
@@ -603,10 +605,17 @@ def trace_transaction(request):
                         f'input_{i} = TxInput({txid!r}, {vout}, script_sig=Script([]), sequence=bytes.fromhex("ffffffff"))')
     for i, row in enumerate(outputs):
         address = str(row.get('address', '')).strip()
-        address_script(address, f'Output {i + 1}')
+        if common_outputs:
+            output_lock = P2wpkhAddress(address=address).to_script_pub_key()
+            if len(output_lock.to_bytes()) != 22:
+                raise ValueError('Comparison outputs must be P2WPKH.')
+            output_code = f'P2wpkhAddress(address={address!r}).to_script_pub_key()'
+        else:
+            address_script(address, f'Output {i + 1}')
+            output_code = address_code(address)
         amount = integer(row.get('amount'), f'Output {i + 1} amount', maximum)
         out_amounts.append(amount)
-        snippets.append(f'output_{i} = TxOutput({amount}, {address_code(address)})')
+        snippets.append(f'output_{i} = TxOutput({amount}, {output_code})')
     total_in, total_out = sum(amounts), sum(out_amounts)
     if total_in > maximum or total_out > maximum:
         raise ValueError('The total value cannot exceed 21 million BTC.')
@@ -692,6 +701,11 @@ def trace_transaction(request):
                         f'public_keys_{i} = [key.get_public_key().to_hex(compressed=True) for key in signer_keys_{i}]\n'
                         f'signatures_{i} = [{signature_call} for key in signer_keys_{i}]\n'
                         + placement)
+                if common_outputs:
+                    placement_start = code.index(f'signatures_{i} =')
+                    # Normalize each signature before constructing scriptSig/witness.
+                    insertion = code.index('\n', placement_start)
+                    code = code[:insertion] + f'\nsignatures_{i} = [canonical_ecdsa_signature(sig) for sig in signatures_{i}]' + code[insertion:]
                 exec(code, namespace)
                 signing_codes.append(code)
                 signing['inputs'].append(dict(digest=namespace[f'digest_{i}'].hex(), signature=namespace[f'signatures_{i}'][0],
@@ -718,6 +732,9 @@ def trace_transaction(request):
                         f'signature_{i} = key_{i}.sign_segwit_input(tx, {i}, script_code_{i}, previous_amount_{i}, {mode_code})\n'
                         f'tx.set_witness({i}, TxWitnessInput([signature_{i}, public_key_{i}]))'
                         + (f'\ntx.inputs[{i}].script_sig = Script([key_{i}.get_public_key().get_segwit_address().to_script_pub_key().to_hex()])' if nested else ''))
+            if common_outputs:
+                insertion = code.index('\n', code.index(f'signature_{i} ='))
+                code = code[:insertion] + f'\nsignature_{i} = canonical_ecdsa_signature(signature_{i})' + code[insertion:]
             exec(code, namespace)
             signing_codes.append(code)
             signing['inputs'].append(dict(digest=namespace[f'digest_{i}'].hex(), signature=namespace[f'signature_{i}'],
@@ -783,11 +800,12 @@ def trace_transaction(request):
             field(prefix + 'empty scriptSig', 0, 'script', 'Native P2WSH requires an empty scriptSig. Signatures and the witness script go in witness.' if wsh else 'Nested signing fills this scriptSig with a single pushed witness program. Signatures go in witness.' if nested else 'Native P2WPKH requires an empty scriptSig. The signature and public key go in this input’s witness stack.' if native else 'No bytes yet. P2SH signing adds an empty dummy, the required signatures, and the redeem script here.' if multisig else 'No bytes yet. Signing a P2PKH input adds a signature and public key here. The previous locking script does not belong here.', code)
         field(prefix + 'sequence', 4, 'sequence', 'ffffffff is the final sequence value. With locktime zero, this example has no transaction locktime delay.', code)
     field('Output count', len(encode_varint(len(outputs))), 'count', f'{len(outputs)} outputs, encoded as CompactSize.', constructor)
+    output_size = 22 if common_outputs else script_size_expected
     for i, amount in enumerate(out_amounts):
         code = snippets[len(inputs) + i]
         field(f'Output {i + 1} · amount', 8, 'amount', f'{amount:,} satoshis, encoded as an eight-byte little-endian integer. Addresses and BTC decimal strings are not serialized.', code)
-        field(f'Output {i + 1} · script length', 1, 'count', f'{script_size_expected:02x} hexadecimal is {script_size_expected} decimal: the length of the {spend_type.upper()} locking script in bytes.', code)
-        field(f'Output {i + 1} · locking script', script_size_expected, 'script', 'OP_0 followed by the 32-byte SHA256 of a witness script: a native P2WSH program.' if wsh else 'OP_0 followed by a 20-byte public-key hash: a native version-0 witness program.' if native else 'OP_HASH160 <20-byte redeem-script hash> OP_EQUAL. The spender must reveal and satisfy the matching redeem script.' if multisig or nested else 'OP_DUP OP_HASH160 <20-byte public-key hash> OP_EQUALVERIFY OP_CHECKSIG. This is the new output’s spending condition.', code)
+        field(f'Output {i + 1} · script length', 1, 'count', f'{output_size:02x} hexadecimal is {output_size} decimal: the locking script length in bytes.', code)
+        field(f'Output {i + 1} · locking script', output_size, 'script', 'OP_0 followed by the 32-byte SHA256 of a witness script: a native P2WSH program.' if wsh and not common_outputs else 'OP_0 followed by a 20-byte public-key hash: a native version-0 witness program.' if native or common_outputs else 'OP_HASH160 <20-byte redeem-script hash> OP_EQUAL. The spender must reveal and satisfy the matching redeem script.' if multisig or nested else 'OP_DUP OP_HASH160 <20-byte public-key hash> OP_EQUALVERIFY OP_CHECKSIG. This is the new output’s spending condition.', code)
     if segwit and signing:
         for i, signed_input in enumerate(signing['inputs']):
             code = signing_codes[i]
@@ -1004,6 +1022,9 @@ def trace_lesson(request_json):
     if request.get('kind') == 'execution':
         return json.dumps(trace_execution(request))
     kind = request.get('kind', 'p2pkh')
+    if kind == 'tx-compare':
+        from bitcoin_education.comparison import trace_transaction_comparison
+        return json.dumps(trace_transaction_comparison(request, trace_transaction))
     if kind == 'construction':
         return json.dumps(trace_candidate(request))
     if kind == 'mining':

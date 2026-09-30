@@ -7,7 +7,7 @@ UTXO amounts, locks and block ages are caller-supplied educational metadata.
 import hashlib
 import re
 
-from bitcoinutils.keys import PrivateKey, PublicKey, P2trAddress
+from bitcoinutils.keys import PrivateKey, PublicKey, P2trAddress, P2wpkhAddress
 from bitcoinutils.script import Script
 from bitcoinutils.transactions import Transaction, TxInput, TxOutput, TxWitnessInput
 from bitcoinutils.utils import (ControlBlock, calculate_tweak, encode_varint,
@@ -158,7 +158,7 @@ def _key(raw, label):
         raise ValueError(f'{label}: use a valid nonzero secp256k1 scalar.') from None
 
 
-def trace_taproot_transaction(request):
+def trace_taproot_transaction(request, common_outputs=False):
     network = request.get('network')
     if network not in ('mainnet', 'testnet'):
         raise ValueError('Choose mainnet or testnet.')
@@ -170,7 +170,7 @@ def trace_taproot_transaction(request):
     if not isinstance(inputs, list) or not isinstance(outputs, list) or not 1 <= len(inputs) <= 20 or not 1 <= len(outputs) <= 20:
         raise ValueError('Use between 1 and 20 inputs and outputs.')
     scripts, amounts, txins, txouts, metadata, snippets, seen = [], [], [], [], [], [], set()
-    preamble = ('from bitcoinutils.setup import setup\nfrom bitcoinutils.keys import PrivateKey, PublicKey\n'
+    preamble = ('from bitcoinutils.setup import setup\nfrom bitcoinutils.keys import PrivateKey, PublicKey, P2wpkhAddress\n'
                 'from bitcoinutils.script import Script\nfrom bitcoinutils.transactions import Transaction, TxInput, TxOutput, TxWitnessInput\n'
                 'from bitcoinutils.utils import ControlBlock\n'
                 'from bitcoin_education.taproot import taproot_template, taproot_address_to_script\n'
@@ -220,7 +220,10 @@ def trace_taproot_transaction(request):
                         f'input_{index} = TxInput({txid!r}, {vout}, script_sig=Script([]), sequence=({sequence}).to_bytes(4, "little"))')
     for index, row in enumerate(outputs):
         try:
-            lock = taproot_address_to_script(str(row.get('address', '')).strip())
+            address = str(row.get('address', '')).strip()
+            lock = P2wpkhAddress(address=address).to_script_pub_key() if common_outputs else taproot_address_to_script(address)
+            if common_outputs and len(lock.to_bytes()) != 22:
+                raise ValueError('Comparison outputs must be P2WPKH.')
         except Exception:
             raise ValueError(f'Output {index + 1}: use a valid {network} P2TR Bech32m address.') from None
         amount = _integer(row.get('amount'), f'Output {index + 1} amount', maximum)
@@ -322,8 +325,8 @@ def trace_taproot_transaction(request):
     field('Output count', len(encode_varint(len(outputs))), 'count', 'Number of outputs, CompactSize.')
     for i, output in enumerate(tx.outputs):
         field(f'Output {i + 1} · amount', 8, 'amount', f'{output.amount:,} satoshis, little-endian.', snippets[len(inputs) + i])
-        field(f'Output {i + 1} · script length', 1, 'count', '22 hex = 34 bytes of locking script.', snippets[len(inputs) + i])
-        field(f'Output {i + 1} · locking script', 34, 'script', 'OP_1 (51) + push 32 bytes (20) + the tweaked x-only output key. Bech32m address characters are not serialized.', snippets[len(inputs) + i])
+        field(f'Output {i + 1} · script length', 1, 'count', f'{len(output.script_pubkey.to_bytes()):02x} hex = {len(output.script_pubkey.to_bytes())} bytes of locking script.', snippets[len(inputs) + i])
+        field(f'Output {i + 1} · locking script', len(output.script_pubkey.to_bytes()), 'script', 'OP_0 + push 20 bytes + public-key hash. These common P2WPKH outputs match every comparison row.' if common_outputs else 'OP_1 (51) + push 32 bytes (20) + the tweaked x-only output key. Bech32m address characters are not serialized.', snippets[len(inputs) + i])
     if signing:
         for i, item in enumerate(signing['inputs']):
             witness, path = item['witness'], item['taprootPath']

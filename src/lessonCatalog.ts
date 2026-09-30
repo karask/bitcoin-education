@@ -57,7 +57,9 @@ interface LessonDefinition {
 export const LESSON_ORDER: LessonKind[] = ['p2pkh', 'p2sh', 'p2wpkh', 'p2wsh', 'nested', 'p2tr', 'compare'];
 export const TRANSACTION_ORDER = ['transaction', 'signing', 'execution', 'propagation', 'construction', 'mining', 'blocks'] as const;
 export function isTransactionPage(kind: LessonKind): kind is typeof TRANSACTION_ORDER[number] { return (TRANSACTION_ORDER as readonly string[]).includes(kind); }
+export function isTransactionSection(kind: LessonKind) { return isTransactionPage(kind) || kind === 'tx-compare'; }
 export const CATALOG: Record<LessonKind, LessonDefinition> = {
+  'tx-compare': { nav: 'Compare transaction types', tag: 'COMPARE', title: 'Same payment.', accent: 'Different footprints.', description: 'Put transaction types on the scales. Discover where the bytes go and what they cost.', steps: [], references: [141, 341] },
   home: { nav: 'Lab home', tag: 'WELCOME', title: 'Big ideas.', accent: 'Tiny bytes.', description: 'Choose your Bitcoin adventure.', steps: [], references: [] },
   execution: { nav: 'Script execution', tag: 'STACK', title: 'Follow the stack.', accent: 'Verify the spend.', description: 'Explore the validation of a signed input. Watch each instruction prove—or reject—the authorization.', steps: [], references: [] },
   signing: { nav: 'Signing', tag: 'SIGNATURES', title: 'Authorize the spend.', accent: 'One input at a time.', description: 'Match each key to its previous output. Follow the digest into a signature and its place in the transaction.', steps: [], references: [] },
@@ -77,5 +79,5 @@ export const CATALOG: Record<LessonKind, LessonDefinition> = {
 
 export function lessonFromHash(hash: string): LessonKind | null {
   const candidate = hash.replace(/^#/, '') || 'home';
-  return candidate === 'home' || isTransactionPage(candidate as LessonKind) || LESSON_ORDER.includes(candidate as LessonKind) ? candidate as LessonKind : null;
+  return candidate === 'home' || isTransactionSection(candidate as LessonKind) || LESSON_ORDER.includes(candidate as LessonKind) ? candidate as LessonKind : null;
 }

@@ -58,3 +58,11 @@
   .home-playbook span { margin-left: 7px; }
 }
 @media (prefers-reduced-motion: reduce) { .home-path:hover, .home-path:focus-visible, .home-path:hover .home-card-arrow { transform: none; } }
+
+.home-comparison { display: flex; align-items: center; gap: 18px; padding: 22px; margin: 22px 0; background: var(--green-soft); border: 1px solid var(--green-line); border-radius: 12px; color: var(--teal); text-decoration: none; }
+.home-comparison > svg { flex-shrink: 0; }
+.home-comparison > div { display: grid; gap: 7px; }
+.home-comparison strong { color: var(--text); font-size: 16px; }
+.home-comparison > div > span { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.home-comparison-cta { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 12px; font-weight: 600; white-space: nowrap; }
+@media (max-width: 650px) { .home-comparison { flex-wrap: wrap; } .home-comparison > div { flex: 1; } .home-comparison-cta { margin-left: 42px; } }

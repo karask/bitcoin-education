@@ -90,3 +90,19 @@ Full block serialization and UTXO-backed/contextual consensus validation are
 outside the current website flow. General-purpose library functionality can be
 added upstream when useful independently of the website; educational trace
 formats, experiments, and walkthroughs belong here.
+
+## Transaction comparison
+
+The adapter accepts an internal `common_outputs` argument for the comparison
+lab, letting its signed spending examples share identical P2WPKH outputs.
+Normal transaction lessons keep their existing output validation. Output byte
+annotations use the actual comparison lengths. `bitcoin_education.comparison`
+provides scenarios and ID experiments composed from the existing signers.
+
+The pinned bitcoin-utils 0.8.7 `_sign_input` low-S conversion can pad a small
+negated S integer to 32 bytes, creating nonminimal DER. The default comparison
+P2PKH payment exercises this case. Comparison signing re-encodes the same r/s
+values with `ecdsa.util.sigencode_der` before placing signatures in the
+transaction. This workaround is scoped to comparison signing; no curve math or
+signature verification is reimplemented. Every comparison input is checked by
+its existing execution tracer in the tests.
