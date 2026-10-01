@@ -1,0 +1,64 @@
+.coin-lab { padding-bottom: 10px; }
+.coin-intro { display: flex; align-items: flex-start; gap: 18px; margin: 24px 0; padding: 22px 24px; border: 1px solid var(--accent-line); border-radius: 12px; background: var(--accent-soft); }
+.coin-intro svg { flex-shrink: 0; color: var(--accent); }
+.coin-intro strong { font-size: 16px; font-weight: 500; }
+.coin-intro p, .coin-note { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.75; }
+.coin-heading { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 20px; }
+.coin-heading h2, .coin-plan h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; font-size: 21px; font-weight: 500; letter-spacing: -.5px; margin: 9px 0 0; }
+.coin-heading h2 small { font-size: 12px; color: var(--muted); font-weight: 400; }
+.coin-payment { padding: 24px; }
+.coin-controls { display: grid; grid-template-columns: 1fr 1fr 1.35fr 1fr; gap: 16px; }
+.coin-controls label { display: flex; flex-direction: column; gap: 9px; color: var(--secondary); font-size: 12px; }
+.coin-controls label > span { color: var(--muted); font-size: 10px; }
+.coin-controls input, .coin-controls select { min-width: 0; width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 7px; color: var(--text); background: var(--input-bg); font-size: 12px; }
+.coin-controls input { font-family: 'JetBrains Mono', monospace; }
+.coin-controls input[aria-invalid="true"] { border-color: var(--accent); }
+.coin-strategies { margin: 30px 0; }
+.coin-strategy-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.coin-strategy { text-align: left; padding: 20px; display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--line); }
+.coin-strategy.selected { border-color: var(--accent); background: var(--accent-soft); }
+.coin-strategy > strong { font-size: 16px; font-weight: 500; }
+.coin-strategy p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.coin-strategy > div { display: grid; gap: 7px; margin-top: auto; padding-top: 9px; color: var(--secondary); font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+.coin-strategy > small { color: var(--muted); line-height: 1.6; }
+.coin-workspace { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); align-items: start; gap: 20px; }
+.coin-wallet, .coin-plan { padding: 24px; min-width: 0; }
+.coin-mode { padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; font-size: 10px; color: var(--muted); white-space: nowrap; }
+.coin-list { display: grid; gap: 10px; margin-top: 20px; }
+.coin { border: 1px solid var(--line); border-radius: 9px; background: var(--input-bg); overflow: hidden; }
+.coin.selected { border-color: var(--accent-line); background: var(--accent-soft); }
+.coin-choice { display: flex; align-items: center; gap: 10px; padding: 15px 13px; cursor: pointer; }
+.coin-choice input { accent-color: var(--accent); width: 16px; height: 16px; flex-shrink: 0; }
+.coin-letter { color: var(--faint); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+.coin-choice > div { min-width: 0; }
+.coin-choice strong { display: block; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; }
+.coin-choice strong small { color: var(--muted); font-size: 10px; }
+.coin-choice div > span { display: block; color: var(--muted); font-size: 10px; margin-top: 5px; }
+.coin-effective { margin-left: auto; color: var(--muted); font-size: 9px; text-align: right; }
+.coin-effective.uneconomic { color: var(--accent); }
+.coin details { border-top: 1px solid var(--line); font-size: 10px; color: var(--muted); }
+.coin details summary { padding: 10px 13px; cursor: pointer; }
+.coin details dl { padding: 0 13px 10px; margin: 0; }
+.coin details dt { margin-top: 10px; }
+.coin details dd { color: var(--secondary); margin: 5px 0 0; overflow-wrap: anywhere; }
+.coin details code { font-family: 'JetBrains Mono', monospace; font-size: 9px; }
+.coin-equation { display: grid; gap: 15px; padding: 21px 0; margin: 0; border-bottom: 1px solid var(--line); }
+.coin-equation > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+.coin-equation dt { font-size: 12px; color: var(--muted); }
+.coin-equation dt small { display: block; font-size: 10px; margin-top: 5px; }
+.coin-equation dd { font-family: 'JetBrains Mono', monospace; font-size: 13px; margin: 0; white-space: nowrap; }
+.coin-plan-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0; }
+.coin-plan-facts > span { padding: 13px; background: var(--input-bg); border-radius: 7px; color: var(--muted); font-size: 10px; }
+.coin-plan-facts strong { display: block; color: var(--secondary); margin-bottom: 6px; font-size: 14px; font-weight: 500; }
+.coin-plan code { overflow-wrap: anywhere; font-size: 10px; }
+.coin-shortfall { color: var(--accent); font-size: 12px; line-height: 1.7; margin: 14px 0; }
+.coin-after { margin: 18px 0; padding: 15px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); line-height: 1.7; }
+.coin-after strong { color: var(--secondary); }
+.coin-privacy { display: flex; gap: 9px; color: var(--muted); font-size: 12px; line-height: 1.7; margin: 16px 0; }
+.coin-privacy svg { color: var(--accent); flex-shrink: 0; margin-top: 3px; }
+.coin-continue { width: 100%; justify-content: center; margin-top: 20px; }
+.coin-assumptions { padding: 20px 24px; margin-top: 24px; }
+.coin-assumptions summary { color: var(--secondary); font-size: 13px; cursor: pointer; }
+.coin-assumptions p { font-size: 12px; line-height: 1.8; color: var(--muted); }
+@media (max-width: 1100px) { .coin-controls { grid-template-columns: 1fr 1fr; } .coin-workspace { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .coin-strategy-grid { grid-template-columns: 1fr; } .coin-heading { flex-wrap: wrap; } .coin-wallet, .coin-plan, .coin-payment { padding: 20px 16px; } .coin-effective { max-width: 68px; line-height: 1.5; } .coin-choice { gap: 7px; padding: 13px 10px; } .coin-choice strong { font-size: 13px; } }

@@ -154,3 +154,7 @@
 .tx-source-context p { max-width: 680px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
 .tx-source-context .segmented { flex-shrink: 0; }
 @media (max-width: 900px) { .tx-source-context { align-items: flex-start; flex-direction: column; } }
+
+.tx-funding-plan { border: 1px solid var(--line); background: var(--surface); padding: 18px 24px; margin-bottom: 22px; border-radius: 10px; }
+.tx-funding-plan > strong { font-size: 13px; font-weight: 500; }
+.tx-funding-plan p { color: var(--muted); font-size: 12px; line-height: 1.8; margin: 8px 0 0; }

@@ -4,7 +4,7 @@ import {
   ChevronRight, Code2, Copy, Fingerprint, FlaskConical, HelpCircle, Info,
   LoaderCircle, Menu, Moon, Pause, Play, RotateCcw, ShieldCheck, Sparkles, Sun, X,
 } from 'lucide-react';
-import type { ByteField, CodeMode, LessonInput, LessonKind, LessonTrace, StepResult, Theme } from './types';
+import type { ByteField, CodeMode, LessonInput, LessonKind, LessonTrace, StepResult, Theme, TransactionImport } from './types';
 import { EXAMPLE_PUBLIC_KEY, EXAMPLE_PUBLIC_KEYS } from './lessons';
 import { CATALOG, LESSON_ORDER, isTransactionPage, isTransactionSection, lessonFromHash } from './lessonCatalog';
 import { SymbolExplorer, AddressParts } from './EncodingExplorer';
@@ -15,6 +15,7 @@ import { usePython } from './usePython';
 import { TransactionLesson } from './TransactionLesson';
 import { TOPICS, topicFor, type TopicId } from './navigation';
 import { HomeScreen } from './HomeScreen';
+import { CoinSelectionLab } from './CoinSelectionLab';
 import { TransactionComparisonLab } from './TransactionComparisonLab';
 
 const INITIAL_INPUT: LessonInput = { publicKey: EXAMPLE_PUBLIC_KEY, compressed: true, network: 'mainnet', kind: lessonFromHash(location.hash) ?? 'home', publicKeys: EXAMPLE_PUBLIC_KEYS, threshold: 2 };
@@ -177,6 +178,7 @@ export default function App() {
   const [mode, setMode] = useState<CodeMode>('pseudocode');
   const [playing, setPlaying] = useState(false);
   const runtime = usePython();
+  const [coinImport, setCoinImport] = useState<TransactionImport | null>(null);
   const { calculate, invalidate } = runtime;
   const kind = input.kind ?? 'home';
   const isHome = kind === 'home';
@@ -261,7 +263,8 @@ export default function App() {
       <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="lesson-navigation" onClick={() => setDrawerOpen(true)}><Menu size={20} /></button><a href="#home" className="breadcrumb-home">The learning lab</a><ChevronRight size={13} /><span>{isHome ? 'Home' : topicFor(kind)?.title}</span><ChevronRight size={13} /><strong>{definition.tag}</strong></div><div className="topbar-actions"><span className={`runtime-pill ${runtime.status.state}`} title={runtime.status.message}><span />{runtime.status.state === 'ready' ? 'Runs in your browser' : runtime.status.state === 'error' ? 'Python needs attention' : 'Starting Python'}</span><span className="toolbar-divider" /><button className="icon-button" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button><button className="icon-button help-button" aria-label="About this learning lab" onClick={() => setAboutOpen(true)}><HelpCircle size={18} /></button></div></header>
       <main id="lesson-content" className="lesson-content">
         {isHome && <HomeScreen />}
-        <div hidden={!isTransactionPage(kind)}><TransactionLesson runtime={runtime} visible={isTransactionPage(kind)} page={isTransactionPage(kind) ? kind : 'transaction'} /></div>
+        <div hidden={kind !== 'coins'}><CoinSelectionLab onContinue={selection => { invalidate(); setCoinImport(selection); location.hash = 'transaction'; }} /></div>
+        <div hidden={!isTransactionPage(kind)}><TransactionLesson imported={coinImport} runtime={runtime} visible={isTransactionPage(kind)} page={isTransactionPage(kind) ? kind : 'transaction'} /></div>
         <div hidden={kind !== 'tx-compare'}><TransactionComparisonLab runtime={runtime} visible={kind === 'tx-compare'} /></div>
         {!isHome && !isTransactionSection(kind) && <>
         <section className="hero" id={kind}><div className="hero-copy"><div className="hero-meta"><span className="chapter-tag">CHAPTER {String(LESSON_ORDER.indexOf(kind) + 1).padStart(2, '0')}</span><span>ADDRESSES</span><span className="hero-meta-dot">·</span><span>{steps.length} {kind === 'compare' ? 'constructions, one key' : 'steps, one transformation'}</span></div><h1>{definition.title}<br /><span>{definition.accent}</span></h1><p>{definition.description}</p></div><div className="hero-art" aria-hidden="true"><div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" /><div className="art-core"><Fingerprint size={46} strokeWidth={1.2} /></div><span className="art-label label-top">{definition.multisig ? 'spending rule' : 'public key'}</span><span className="art-label label-bottom">{definition.tag}</span><span className="orbit-dot dot-one" /><span className="orbit-dot dot-two" /><span className="art-spark">+</span></div></section>

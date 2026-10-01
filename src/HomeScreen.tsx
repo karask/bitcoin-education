@@ -20,12 +20,12 @@ export function HomeScreen() {
         <div className="home-mini-path" aria-hidden="true"><span><KeyRound size={14} />Key</span><ArrowRight size={13} /><span>Hash</span><ArrowRight size={13} /><span>Address</span></div>
         <div className="home-path-cta">Make an address<ArrowRight size={16} /></div>
       </a>
-      <a className="home-path home-transactions" href="#transaction" aria-labelledby="home-transaction-title">
+      <a className="home-path home-transactions" href="#coins" aria-labelledby="home-transaction-title">
         <div className="home-path-top"><span className="home-path-icon"><Blocks size={24} /></span><span className="home-path-tag">TRANSACTIONS</span><ArrowRight className="home-card-arrow" size={19} /></div>
         <h3 id="home-transaction-title">How do the coins move?</h3>
-        <p>Build and sign transactions. Inspect their bytes, compare spending types, and discover how signatures authorize a payment.</p>
-        <div className="home-mini-path" aria-hidden="true"><span>Build</span><ArrowRight size={13} /><span>Sign</span><ArrowRight size={13} /><span>Compare</span></div>
-        <div className="home-path-cta">Build a transaction<ArrowRight size={16} /></div>
+        <p>Choose coins, build a payment, and sign it. Explore how inputs affect fees and change, then inspect the bytes and compare spending types.</p>
+        <div className="home-mini-path" aria-hidden="true"><span>Choose</span><ArrowRight size={13} /><span>Build</span><ArrowRight size={13} /><span>Sign</span></div>
+        <div className="home-path-cta">Choose your coins<ArrowRight size={16} /></div>
       </a>
       <a className="home-path home-scripts" href="#execution" aria-labelledby="home-script-title">
         <div className="home-path-top"><span className="home-path-icon"><Code2 size={24} /></span><span className="home-path-tag">SCRIPTS & TIMELOCKS</span><ArrowRight className="home-card-arrow" size={19} /></div>

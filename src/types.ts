@@ -2,7 +2,7 @@ export type Network = 'mainnet' | 'testnet';
 export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
 export type TransactionPage = 'transaction' | 'signing' | 'execution' | 'propagation' | 'construction' | 'mining' | 'blocks';
-export type LessonKind = 'home' | 'tx-compare' | 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
+export type LessonKind = 'home' | 'coins' | 'tx-compare' | 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
 export type SpendType = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'p2tr-script';
 export type SighashType = 0 | 1 | 2 | 3 | 129 | 130 | 131;
 export type TaprootPath = 'key' | 'multisig' | 'recovery' | 'hashlock';
@@ -52,6 +52,8 @@ export interface TransactionDraft {
   inputs: { txid: string; vout: string; amount: string; source: string; sourceType: 'address' | 'script'; privateKey?: string; compressed?: boolean; sighashType?: SighashType; redeemScript?: string; witnessScript?: string; signerKeys?: string[]; taprootPath?: TaprootPath; taprootLeaves?: 2 | 3; internalKey?: string; secret?: string; sequence?: string }[];
   outputs: { address: string; amount: string }[];
 }
+export interface FundingPlan { rate: string; estimatedVsize: number; estimatedFee: number; strategy: string }
+export interface TransactionImport { id: string; network: Network; draft: TransactionDraft; funding: FundingPlan }
 export interface TransactionResult {
   spendType: SpendType; hasWitness: boolean; txid: string; wtxid: string;
   baseSize: number; totalSize: number; weight: number; vsize: number;

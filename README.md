@@ -10,7 +10,7 @@ UTXOs and outputs, with a field-by-field hex explorer and runnable Python.
 
 The base URL opens a welcome screen with four collapsed sidebar groups and four
 learning-path cards. Addresses contains the address lessons; Transactions contains
-Anatomy, Signing, and Compare transaction types; Scripts & Timelocks contains
+UTXOs & coin selection, Anatomy, Signing, and Compare transaction types; Scripts & Timelocks contains
 Script execution; Network & Blocks contains propagation, block construction,
 mining, and confirmations. The logo returns home and collapses the groups. Existing
 lesson hashes keep working, and the seven-stage transaction path crosses these menus.
@@ -25,8 +25,16 @@ attempts, relay state, and confirmation depth in memory until the tab is reloade
 Only the active simulation advances. Worker results are attributed to the exact
 request and context, preventing a switched-away request from replacing another draft.
 
-This menu structure leaves room for UTXO/coin-selection lessons under Transactions
-and timelocks/HTLCs under Scripts & Timelocks; those additional lessons are not yet implemented.
+The coin-selection lab starts with eight fictional confirmed outputs. Compare
+fewest inputs, smallest change, consolidation, or choose coins manually. Its fee
+budget accounts for signed weight, fractional fee rates, and omitted dust change;
+the dust relay rate is modeled separately from the chosen payment fee rate.
+Selections carry exact outpoints, amounts, public learning keys, payment, and a
+fresh change address into Anatomy. Signing compares actual size against the budget.
+The lab supports P2PKH, native P2WPKH, nested P2SH-P2WPKH, and Taproot key-path
+wallets on both networks. Its exhaustive small-wallet strategies are teaching
+models, not reproductions of Bitcoin Core's wallet algorithms. Timelocks and HTLC
+lessons remain future additions under Scripts & Timelocks.
 
 Append a lesson fragment to `/bitcoin-education/`:
 
@@ -40,6 +48,7 @@ Append a lesson fragment to `/bitcoin-education/`:
 | `#nested` | P2WPKH redeem script → outer P2SH address |
 | `#p2tr` | X-only internal key → TapTweak → output key → Bech32m |
 | `#compare` | Six address constructions and locking scripts from one key |
+| `#coins` | UTXOs, manual/automatic coin selection, fee budgets, change, and privacy |
 | `#transaction` | Transaction anatomy: UTXOs, outputs, fees, unsigned bytes |
 | `#signing` | Legacy/BIP143/BIP341 digests, signatures, scriptSigs/witnesses, signed bytes |
 | `#execution` | Seven spending examples with stack traces and failure experiments |
