@@ -1022,6 +1022,9 @@ def trace_lesson(request_json):
     if request.get('kind') == 'execution':
         return json.dumps(trace_execution(request))
     kind = request.get('kind', 'p2pkh')
+    if kind == 'timelocks':
+        from bitcoin_education.timelocks import trace_timelocks
+        return json.dumps(trace_timelocks(request))
     if kind == 'tx-compare':
         from bitcoin_education.comparison import trace_transaction_comparison
         return json.dumps(trace_transaction_comparison(request, trace_transaction))

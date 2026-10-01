@@ -11,6 +11,7 @@
     "bitcoin_education/segwit_block.py",
     "bitcoin_education/sighash.py",
     "bitcoin_education/taproot.py",
-    "bitcoin_education/comparison.py"
+    "bitcoin_education/comparison.py",
+    "bitcoin_education/timelocks.py"
   ]
 }

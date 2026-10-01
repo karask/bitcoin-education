@@ -57,12 +57,13 @@ interface LessonDefinition {
 export const LESSON_ORDER: LessonKind[] = ['p2pkh', 'p2sh', 'p2wpkh', 'p2wsh', 'nested', 'p2tr', 'compare'];
 export const TRANSACTION_ORDER = ['transaction', 'signing', 'execution', 'propagation', 'construction', 'mining', 'blocks'] as const;
 export function isTransactionPage(kind: LessonKind): kind is typeof TRANSACTION_ORDER[number] { return (TRANSACTION_ORDER as readonly string[]).includes(kind); }
-export function isTransactionSection(kind: LessonKind) { return isTransactionPage(kind) || kind === 'tx-compare' || kind === 'coins'; }
+export function isTransactionSection(kind: LessonKind) { return isTransactionPage(kind) || kind === 'tx-compare' || kind === 'coins' || kind === 'timelocks'; }
 export const CATALOG: Record<LessonKind, LessonDefinition> = {
+  timelocks: { nav: 'Timelocks', tag: 'TIME', title: 'The right key.', accent: 'The right time.', description: 'Explore absolute and relative locks, build signed transactions, and compare script requirements with chain timing.', steps: [], references: [65, 68, 112, 113] },
   coins: { nav: 'UTXOs & coin selection', tag: 'COINS', title: 'A balance is a collection.', accent: 'Choose the pieces.', description: 'Explore unspent outputs, fund a payment, and discover how coin selection changes fees, change, and privacy.', steps: [], references: [] },
   'tx-compare': { nav: 'Compare transaction types', tag: 'COMPARE', title: 'Same payment.', accent: 'Different footprints.', description: 'Put transaction types on the scales. Discover where the bytes go and what they cost.', steps: [], references: [141, 341] },
   home: { nav: 'Lab home', tag: 'WELCOME', title: 'Big ideas.', accent: 'Tiny bytes.', description: 'Choose your Bitcoin adventure.', steps: [], references: [] },
-  execution: { nav: 'Script execution', tag: 'STACK', title: 'Follow the stack.', accent: 'Verify the spend.', description: 'Explore the validation of a signed input. Watch each instruction prove—or reject—the authorization.', steps: [], references: [] },
+  execution: { nav: 'Basic scripts execution', tag: 'STACK', title: 'Follow the stack.', accent: 'Verify the spend.', description: 'Explore the validation of a signed input. Watch each instruction prove—or reject—the authorization.', steps: [], references: [] },
   signing: { nav: 'Signing', tag: 'SIGNATURES', title: 'Authorize the spend.', accent: 'One input at a time.', description: 'Match each key to its previous output. Follow the digest into a signature and its place in the transaction.', steps: [], references: [] },
   propagation: { nav: 'Propagation & mempools', tag: 'RELAY', title: 'One transaction.', accent: 'Many independent nodes.', description: 'Watch the selected signed transaction spread and compare each node’s local view.', steps: [], references: [] },
   construction: { nav: 'Block construction', tag: 'CANDIDATE', title: 'From mempool', accent: 'to Merkle root.', description: 'Select transactions, build the coinbase, and follow their TXIDs into the header commitment.', steps: [], references: [] },

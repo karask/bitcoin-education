@@ -294,3 +294,17 @@ the modeled UTXO confirmation, not wall-clock time. All UTXO metadata is assumed
 Other leaves, annexes, code separators and complete consensus/policy are out of
 scope. `taproot_address_to_script` checks a Bech32m v1/32-byte address on the active
 network with the core decoder. Signing, crypto, and serialization remain core APIs.
+
+## Timelock teaching templates
+
+`timelocks.trace_timelocks` constructs and signs a single-input native P2WSH
+spend using public scalars 1 and 2. Templates use a key-only script,
+`<absolute> CLTV DROP <key> CHECKSIG`, or
+`<relative> CSV DROP <key> CHECKSIG`. It verifies the real BIP143 signature and
+models BIP65/68/112/113 field and chain-context checks separately. Candidate
+height, previous-block MTP, UTXO confirmation height, and MTP before that
+confirmation are supplied teaching context, never fetched or signed. Absolute
+finality uses strict inequality; relative locks use the first eligible
+height/MTP boundary. This is a fixed-template evaluator, not a general Script
+interpreter or full node validator. Runnable returned Python recreates the signed
+bytes; it does not validate eligibility or broadcast the spend.

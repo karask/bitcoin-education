@@ -15,6 +15,7 @@ import { usePython } from './usePython';
 import { TransactionLesson } from './TransactionLesson';
 import { TOPICS, topicFor, type TopicId } from './navigation';
 import { HomeScreen } from './HomeScreen';
+import { TimelocksLab } from './TimelocksLab';
 import { CoinSelectionLab } from './CoinSelectionLab';
 import { TransactionComparisonLab } from './TransactionComparisonLab';
 
@@ -263,6 +264,7 @@ export default function App() {
       <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="lesson-navigation" onClick={() => setDrawerOpen(true)}><Menu size={20} /></button><a href="#home" className="breadcrumb-home">The learning lab</a><ChevronRight size={13} /><span>{isHome ? 'Home' : topicFor(kind)?.title}</span><ChevronRight size={13} /><strong>{definition.tag}</strong></div><div className="topbar-actions"><span className={`runtime-pill ${runtime.status.state}`} title={runtime.status.message}><span />{runtime.status.state === 'ready' ? 'Runs in your browser' : runtime.status.state === 'error' ? 'Python needs attention' : 'Starting Python'}</span><span className="toolbar-divider" /><button className="icon-button" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button><button className="icon-button help-button" aria-label="About this learning lab" onClick={() => setAboutOpen(true)}><HelpCircle size={18} /></button></div></header>
       <main id="lesson-content" className="lesson-content">
         {isHome && <HomeScreen />}
+        <div hidden={kind !== 'timelocks'}><TimelocksLab runtime={runtime} visible={kind === 'timelocks'} /></div>
         <div hidden={kind !== 'coins'}><CoinSelectionLab onContinue={selection => { invalidate(); setCoinImport(selection); location.hash = 'transaction'; }} /></div>
         <div hidden={!isTransactionPage(kind)}><TransactionLesson imported={coinImport} runtime={runtime} visible={isTransactionPage(kind)} page={isTransactionPage(kind) ? kind : 'transaction'} /></div>
         <div hidden={kind !== 'tx-compare'}><TransactionComparisonLab runtime={runtime} visible={kind === 'tx-compare'} /></div>

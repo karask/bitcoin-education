@@ -10,8 +10,8 @@ UTXOs and outputs, with a field-by-field hex explorer and runnable Python.
 
 The base URL opens a welcome screen with four collapsed sidebar groups and four
 learning-path cards. Addresses contains the address lessons; Transactions contains
-UTXOs & coin selection, Anatomy, Signing, and Compare transaction types; Scripts & Timelocks contains
-Script execution; Network & Blocks contains propagation, block construction,
+UTXOs & coin selection, Anatomy, Signing, and Compare transaction types; Scripts contains
+Basic scripts execution and Timelocks; Network & Blocks contains propagation, block construction,
 mining, and confirmations. The logo returns home and collapses the groups. Existing
 lesson hashes keep working, and the seven-stage transaction path crosses these menus.
 
@@ -33,8 +33,16 @@ Selections carry exact outpoints, amounts, public learning keys, payment, and a
 fresh change address into Anatomy. Signing compares actual size against the budget.
 The lab supports P2PKH, native P2WPKH, nested P2SH-P2WPKH, and Taproot key-path
 wallets on both networks. Its exhaustive small-wallet strategies are teaching
-models, not reproductions of Bitcoin Core's wallet algorithms. Timelocks and HTLC
-lessons remain future additions under Scripts & Timelocks.
+models, not reproductions of Bitcoin Core's wallet algorithms. HTLC lessons remain
+future additions under Scripts.
+
+The standalone Timelocks lab builds signed native P2WSH spends with a fixed public
+learning key. Compare transaction-only nLockTime and BIP68 sequence locks against
+CLTV and CSV output requirements, using heights or chain MTP. Script checks and
+chain eligibility are shown separately, with exact strict/inclusive boundaries,
+sequence bit decoding, signatures, bytes, and runnable construction Python. Its
+chain clock is hypothetical and its fixed templates are not a general Script
+interpreter or full-node policy validator; it does not alter the seven-stage draft.
 
 Append a lesson fragment to `/bitcoin-education/`:
 
@@ -51,7 +59,8 @@ Append a lesson fragment to `/bitcoin-education/`:
 | `#coins` | UTXOs, manual/automatic coin selection, fee budgets, change, and privacy |
 | `#transaction` | Transaction anatomy: UTXOs, outputs, fees, unsigned bytes |
 | `#signing` | Legacy/BIP143/BIP341 digests, signatures, scriptSigs/witnesses, signed bytes |
-| `#execution` | Seven spending examples with stack traces and failure experiments |
+| `#execution` | Basic scripts execution: seven spending examples with stack traces and failure experiments |
+| `#timelocks` | Absolute/relative transaction locks, CLTV/CSV scripts, and modeled chain timing |
 | `#propagation` | Node relay and separate local mempools |
 | `#construction` | Candidate selection, BIP34 coinbase, Merkle tree |
 | `#mining` | Candidate-root header hashing and nonce attempts |

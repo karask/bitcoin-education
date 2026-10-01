@@ -28,9 +28,9 @@ export function HomeScreen() {
         <div className="home-path-cta">Choose your coins<ArrowRight size={16} /></div>
       </a>
       <a className="home-path home-scripts" href="#execution" aria-labelledby="home-script-title">
-        <div className="home-path-top"><span className="home-path-icon"><Code2 size={24} /></span><span className="home-path-tag">SCRIPTS & TIMELOCKS</span><ArrowRight className="home-card-arrow" size={19} /></div>
+        <div className="home-path-top"><span className="home-path-icon"><Code2 size={24} /></span><span className="home-path-tag">SCRIPTS</span><ArrowRight className="home-card-arrow" size={19} /></div>
         <h3 id="home-script-title">What unlocks the coins?</h3>
-        <p>Follow spending scripts through the stack. Test signatures and spending conditions, then change an argument to see why a spend passes or fails.</p>
+        <p>Follow spending scripts through the stack. Test signatures and timelocks, then change an argument to see why a spend passes or fails.</p>
         <div className="home-mini-path" aria-hidden="true"><span>Script</span><ArrowRight size={13} /><span>Stack</span><ArrowRight size={13} /><span>Result</span></div>
         <div className="home-path-cta">Run a spending script<ArrowRight size={16} /></div>
       </a>

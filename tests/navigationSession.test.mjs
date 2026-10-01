@@ -14,8 +14,9 @@ const draft = { spendType: 'p2pkh', inputs: [{ amount: '100000' }], outputs: [{ 
 test('every existing lesson has one menu home; transaction journey hashes keep their meaning', () => {
   const routes = TOPICS.flatMap(topic => topic.pages);
   assert.equal(new Set(routes).size, routes.length);
-  assert.equal(routes.length, 16);
+  assert.equal(routes.length, 17);
   assert.equal(topicFor('execution').id, 'scripts');
+  assert.equal(topicFor('timelocks').title, 'Scripts');
   for (const page of ['propagation', 'construction', 'mining', 'blocks']) assert.equal(topicFor(page).id, 'network');
   assert.equal(topicFor('coins').id, 'transactions');
   assert.equal(topicFor('tx-compare').id, 'transactions');
