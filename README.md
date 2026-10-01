@@ -8,9 +8,25 @@ UTXOs and outputs, with a field-by-field hex explorer and runnable Python.
 
 ## Learning path
 
-The base URL opens a welcome screen with both sidebar groups collapsed. Choose
-Addresses or Transactions to enter a path; the logo returns home and closes both
-groups. Existing lesson links still open directly.
+The base URL opens a welcome screen with four collapsed sidebar groups and four
+learning-path cards. Addresses contains the address lessons; Transactions contains
+Anatomy, Signing, and Compare transaction types; Scripts & Timelocks contains
+Script execution; Network & Blocks contains propagation, block construction,
+mining, and confirmations. The logo returns home and collapses the groups. Existing
+lesson hashes keep working, and the seven-stage transaction path crosses these menus.
+
+Every transaction stage supports a fresh direct visit. Anatomy and Signing prepare
+an unsigned teaching draft; later stages sign the public example automatically, and
+block stages build a teaching candidate. A visible context banner distinguishes the
+example from the learner's journey. Editing or explicitly building/signing creates
+the learner context. Edited drafts require explicit signing before later stages.
+The source switch preserves each context's transaction, candidate settings, mining
+attempts, relay state, and confirmation depth in memory until the tab is reloaded.
+Only the active simulation advances. Worker results are attributed to the exact
+request and context, preventing a switched-away request from replacing another draft.
+
+This menu structure leaves room for UTXO/coin-selection lessons under Transactions
+and timelocks/HTLCs under Scripts & Timelocks; those additional lessons are not yet implemented.
 
 Append a lesson fragment to `/bitcoin-education/`:
 

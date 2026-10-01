@@ -1,6 +1,6 @@
 // Educational message scheduling and policy modeling only; no Bitcoin cryptography.
 export const NODES = [
-  { id: 'A', name: 'Your node', x: 15, y: 50 },
+  { id: 'A', name: 'Originating node', x: 15, y: 50 },
   { id: 'B', name: 'Relay node', x: 39, y: 23 },
   { id: 'C', name: 'Selective node', x: 39, y: 77 },
   { id: 'D', name: 'Pool node', x: 66, y: 28 },
@@ -50,7 +50,7 @@ function advanceEvent(state: Simulation, options: SimulationOptions, wave: numbe
     }
   } else if (event.kind === 'receive') {
     next.nodes[event.to] = 'checking';
-    text = `${label} receives the transaction bytes${options.withWitness ? ' including witness data' : ''}${event.from === 'wallet' ? ' from your wallet' : ` from ${event.from} (tx)`}. Node-local checks come next.`;
+    text = `${label} receives the transaction bytes${options.withWitness ? ' including witness data' : ''}${event.from === 'wallet' ? ' from the originating wallet' : ` from ${event.from} (tx)`}. Node-local checks come next.`;
     next.queue.push({ ...event, kind: 'check' });
   } else if (event.to === 'C' && options.missingAtC) {
     next.nodes.C = 'missing';

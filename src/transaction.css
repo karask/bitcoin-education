@@ -148,3 +148,9 @@
 }
 
 .tx-entry textarea { width: 100%; resize: vertical; font: 11px/1.8 'JetBrains Mono', monospace; overflow-wrap: anywhere; }
+
+.tx-source-context { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 24px; margin: 22px 0; border: 1px solid var(--accent-line); border-radius: 12px; background: var(--accent-soft); }
+.tx-source-context strong { display: block; margin: 8px 0; font-size: 17px; font-weight: 500; }
+.tx-source-context p { max-width: 680px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.tx-source-context .segmented { flex-shrink: 0; }
+@media (max-width: 900px) { .tx-source-context { align-items: flex-start; flex-direction: column; } }

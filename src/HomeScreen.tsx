@@ -1,4 +1,4 @@
-import { ArrowRight, Blocks, Fingerprint, FlaskConical, KeyRound, MousePointer2, Play, ScanLine, Scale, Sparkles } from 'lucide-react';
+import { ArrowRight, Blocks, Fingerprint, FlaskConical, Code2, Network, KeyRound, MousePointer2, Play, ScanLine, Scale, Sparkles } from 'lucide-react';
 import './home.css';
 
 export function HomeScreen() {
@@ -11,7 +11,7 @@ export function HomeScreen() {
       <div className="home-byte-confetti" aria-hidden="true"><span>01</span><span>₿</span><span>ff</span><span>00</span></div>
     </section>
 
-    <div className="home-path-heading"><h2>Pick your first adventure</h2><span>Two ways in. Plenty of “aha!” moments.</span></div>
+    <div className="home-path-heading"><h2>Pick your first adventure</h2><span>Four ways in. Plenty of “aha!” moments.</span></div>
     <section className="home-paths" aria-label="Choose a learning path">
       <a className="home-path home-addresses" href="#p2pkh" aria-labelledby="home-address-title">
         <div className="home-path-top"><span className="home-path-icon"><Fingerprint size={24} /></span><span className="home-path-tag">ADDRESSES</span><ArrowRight className="home-card-arrow" size={19} /></div>
@@ -23,9 +23,23 @@ export function HomeScreen() {
       <a className="home-path home-transactions" href="#transaction" aria-labelledby="home-transaction-title">
         <div className="home-path-top"><span className="home-path-icon"><Blocks size={24} /></span><span className="home-path-tag">TRANSACTIONS</span><ArrowRight className="home-card-arrow" size={19} /></div>
         <h3 id="home-transaction-title">How do the coins move?</h3>
-        <p>Build and sign a transaction, test its spending rules, and follow it through modeled mempools, mining, and confirmations.</p>
-        <div className="home-mini-path" aria-hidden="true"><span>Build</span><ArrowRight size={13} /><span>Sign</span><ArrowRight size={13} /><span>Confirm</span></div>
-        <div className="home-path-cta">Follow a transaction<ArrowRight size={16} /></div>
+        <p>Build and sign transactions. Inspect their bytes, compare spending types, and discover how signatures authorize a payment.</p>
+        <div className="home-mini-path" aria-hidden="true"><span>Build</span><ArrowRight size={13} /><span>Sign</span><ArrowRight size={13} /><span>Compare</span></div>
+        <div className="home-path-cta">Build a transaction<ArrowRight size={16} /></div>
+      </a>
+      <a className="home-path home-scripts" href="#execution" aria-labelledby="home-script-title">
+        <div className="home-path-top"><span className="home-path-icon"><Code2 size={24} /></span><span className="home-path-tag">SCRIPTS & TIMELOCKS</span><ArrowRight className="home-card-arrow" size={19} /></div>
+        <h3 id="home-script-title">What unlocks the coins?</h3>
+        <p>Follow spending scripts through the stack. Test signatures and spending conditions, then change an argument to see why a spend passes or fails.</p>
+        <div className="home-mini-path" aria-hidden="true"><span>Script</span><ArrowRight size={13} /><span>Stack</span><ArrowRight size={13} /><span>Result</span></div>
+        <div className="home-path-cta">Run a spending script<ArrowRight size={16} /></div>
+      </a>
+      <a className="home-path home-network" href="#blocks" aria-labelledby="home-network-title">
+        <div className="home-path-top"><span className="home-path-icon"><Network size={24} /></span><span className="home-path-tag">NETWORK & BLOCKS</span><ArrowRight className="home-card-arrow" size={19} /></div>
+        <h3 id="home-network-title">How does everyone agree?</h3>
+        <p>Explore modeled mempools and block relay. Select transactions, build a Merkle root, try mining, and watch confirmations grow.</p>
+        <div className="home-mini-path" aria-hidden="true"><span>Relay</span><ArrowRight size={13} /><span>Mine</span><ArrowRight size={13} /><span>Confirm</span></div>
+        <div className="home-path-cta">Follow a block<ArrowRight size={16} /></div>
       </a>
     </section>
 

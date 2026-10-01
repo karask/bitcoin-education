@@ -66,3 +66,6 @@
 .home-comparison > div > span { color: var(--muted); font-size: 12px; line-height: 1.6; }
 .home-comparison-cta { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 12px; font-weight: 600; white-space: nowrap; }
 @media (max-width: 650px) { .home-comparison { flex-wrap: wrap; } .home-comparison > div { flex: 1; } .home-comparison-cta { margin-left: 42px; } }
+
+.home-scripts { --path-color: #a778d5; --path-soft: color-mix(in srgb, var(--path-color) 9%, var(--surface)); --path-line: color-mix(in srgb, var(--path-color) 32%, var(--line)); }
+.home-network { --path-color: #d59b44; --path-soft: color-mix(in srgb, var(--path-color) 9%, var(--surface)); --path-line: color-mix(in srgb, var(--path-color) 32%, var(--line)); }

@@ -5,6 +5,7 @@ export function usePython() {
   const [generation, setGeneration] = useState(0);
   const [status, setStatus] = useState<RuntimeStatus>({ state: 'loading', message: 'Starting Python…', progress: 0 });
   const [trace, setTrace] = useState<LessonTrace | null>(null);
+  const [traceInput, setTraceInput] = useState<LessonInput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [activity, setActivity] = useState(false);
@@ -39,8 +40,8 @@ export function usePython() {
       } else if (response.id === requestId.current) {
         setBusy(false);
         finishActivity();
-        if (response.type === 'result') { setTrace(response.trace); setError(null); }
-        else { setTrace(null); setError(response.message); }
+        if (response.type === 'result') { setTrace(response.trace); setTraceInput(lastInput.current); setError(null); }
+        else { setTrace(null); setTraceInput(null); setError(response.message); }
       }
     };
     instance.onerror = () => {
@@ -56,7 +57,7 @@ export function usePython() {
   const calculate = useCallback((input: LessonInput) => {
     lastInput.current = input;
     requestId.current += 1;
-    setTrace(null);
+    setTrace(null); setTraceInput(null);
     setError(null);
     setBusy(true);
     clearTimeout(activityTimer.current);
@@ -68,7 +69,7 @@ export function usePython() {
   const invalidate = useCallback(() => {
     requestId.current += 1;
     lastInput.current = null;
-    setTrace(null);
+    setTrace(null); setTraceInput(null);
     setError(null);
     setBusy(false);
     clearTimeout(activityTimer.current);
@@ -78,12 +79,12 @@ export function usePython() {
   const retry = useCallback(() => {
     clearTimeout(activityTimer.current);
     setActivity(false);
-    setTrace(null);
+    setTrace(null); setTraceInput(null);
     setError(null);
     setStatus({ state: 'loading', message: 'Restarting Python…', progress: 0 });
     statusRef.current = { state: 'loading', message: 'Restarting Python…', progress: 0 };
     setGeneration((value) => value + 1);
   }, []);
 
-  return { status, trace, error, busy, activity, previewingSighash: lastInput.current?.previewSighash === true, calculate, invalidate, retry };
+  return { status, trace, traceInput, error, busy, activity, previewingSighash: lastInput.current?.previewSighash === true, calculate, invalidate, retry };
 }

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, Copy, Plus, RotateCcw, Trash2 } from 'lucide-react';
-import type { LessonTrace, Network, SpendType, TransactionDraft, TransactionPage } from './types';
+import type { LessonInput, Network, SpendType, TransactionDraft, TransactionPage } from './types';
+import { topicFor } from './navigation';
+import { editedSession, newSession, preparationFor, type TransactionSource, type TransactionSession } from './transactionSession';
 import { CATALOG, TRANSACTION_ORDER } from './lessonCatalog';
 import type { usePython } from './usePython';
 import './transaction.css';
@@ -66,7 +68,7 @@ const SPEND_EXAMPLES: { type: SpendType; label: string; description: string }[] 
 export function TransactionLesson({ runtime, page, visible }: LessonProps) {
   const [spendType, setSpendType] = useState<SpendType>('p2pkh');
   return <div className="transaction-lesson">
-    <section className="hero"><div className="hero-copy"><div className="hero-meta"><span className="chapter-tag">TRANSACTIONS / 0{TRANSACTION_ORDER.indexOf(page) + 1}</span><span>{spendType === 'nested' ? 'P2SH-P2WPKH' : spendType === 'p2tr-script' ? 'P2TR · SCRIPT TREE' : spendType.toUpperCase()}</span></div><h1>{CATALOG[page].title}<br /><span>{CATALOG[page].accent}</span></h1><p>{CATALOG[page].description}</p></div></section>
+    <section className="hero"><div className="hero-copy"><div className="hero-meta"><span className="chapter-tag">{topicFor(page)?.title.toUpperCase()} / 0{TRANSACTION_ORDER.indexOf(page) + 1}</span><span>{spendType === 'nested' ? 'P2SH-P2WPKH' : spendType === 'p2tr-script' ? 'P2TR · SCRIPT TREE' : spendType.toUpperCase()}</span></div><h1>{CATALOG[page].title}<br /><span>{CATALOG[page].accent}</span></h1><p>{CATALOG[page].description}</p></div></section>
     <nav className="tx-page-path" aria-label="Transaction learning path">{TRANSACTION_ORDER.map((id, index) => <a key={id} href={`#${id}`} aria-current={page === id ? 'page' : undefined}><span>0{index + 1}</span>{CATALOG[id].nav}</a>)}</nav>
     <section className="tx-spend-selector" aria-label="Spend example"><div><span className="output-kicker">SPEND EXAMPLE</span><p>Follow the same journey with a different spending condition.</p></div><div className="tx-spend-options" role="group" aria-label="Choose spend example">{SPEND_EXAMPLES.map(item => <button key={item.type} type="button" aria-pressed={spendType === item.type} className={spendType === item.type ? 'selected' : ''} onClick={() => { if (item.type !== spendType) { runtime.invalidate(); setSpendType(item.type); } }}><strong>{item.label}</strong><span>{item.description}</span></button>)}</div><small>Each example keeps its own draft and results while this page is open.</small></section>
     {SPEND_EXAMPLES.map(item => <div key={item.type} hidden={spendType !== item.type} data-spend-example={item.type}><SpendLesson runtime={runtime} page={page} visible={visible && spendType === item.type} spendType={item.type} /></div>)}
@@ -83,49 +85,70 @@ function SpendLesson({ runtime, page, visible, spendType }: LessonProps & { spen
   const multisig = spendType === 'p2sh' || wsh;
   const scriptName = wsh ? 'Witness script' : 'Redeem script';
   const spendLabel = nested ? 'P2SH-P2WPKH' : taprootTree ? 'Taproot scripts' : taproot ? 'Taproot' : spendType.toUpperCase();
-  const [network, setNetwork] = useState<Network>('mainnet');
-  const [draft, setDraft] = useState<TransactionDraft>(() => example('mainnet', spendType));
-  const [dirty, setDirty] = useState(false);
-  const [selected, setSelected] = useState('tx-0');
-  const [unsignedTrace, setUnsignedTrace] = useState<LessonTrace | null>(null);
-  const [signedTrace, setSignedTrace] = useState<LessonTrace | null>(null);
-  const [sighashPreview, setSighashPreview] = useState<LessonTrace['sighash'] | null>(null);
-  const [explorerIndex, setExplorerIndex] = useState<number | null>(null);
-  const started = useRef(false);
+  const [source, setSource] = useState<TransactionSource>('example');
+  const [sessions, setSessions] = useState(() => ({ example: newSession(example('mainnet', spendType)), journey: newSession(example('mainnet', spendType)) }));
+  const session = sessions[source];
+  const { network, draft, dirty, selected, unsignedTrace, signedTrace, sighashPreview, explorerIndex } = session;
+  const pending = useRef<{ input: LessonInput; source: TransactionSource } | null>(null);
   const { calculate, invalidate } = runtime;
+  function patch(target: TransactionSource, updates: Partial<TransactionSession>) {
+    setSessions(previous => ({ ...previous, [target]: { ...previous[target], ...updates } }));
+  }
+  function request(target: TransactionSource, current: TransactionSession, signTransaction = false, previewSighash = false) {
+    const input: LessonInput = { kind: 'transaction', transaction: current.draft, network: current.network, publicKey: '', compressed: true, signTransaction, previewSighash };
+    pending.current = { input, source: target };
+    calculate(input);
+  }
   useEffect(() => {
-    if (!visible) return;
-    if (page === 'transaction' && (!started.current || (!unsignedTrace && !dirty))) {
-      calculate({ kind: 'transaction', transaction: draft, network, publicKey: '', compressed: true });
-    }
-    started.current = true;
-    // Route changes restore a missing unsigned view once; edits require explicit build.
+    if (!visible) { pending.current = null; return; }
+    const task = pending.current;
+    if (!task || runtime.traceInput !== task.input || !runtime.trace) return;
+    if (runtime.trace.sighash) patch(task.source, { sighashPreview: runtime.trace.sighash });
+    else if (runtime.trace.transaction?.spendType === spendType) patch(task.source, runtime.trace.transaction.signing ? { signedTrace: runtime.trace } : { unsignedTrace: runtime.trace });
+    // The exact input object attributes a reply to its source, even if another source has the same spend type.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, page, calculate]);
+  }, [runtime.trace, runtime.traceInput, visible, spendType]);
   useEffect(() => {
-    if (!visible) return;
-    if (runtime.trace?.sighash?.spendType === spendType) { setSighashPreview(runtime.trace.sighash); return; }
-    if (runtime.trace?.transaction?.spendType !== spendType) return;
-    if (runtime.trace.transaction.signing) setSignedTrace(runtime.trace);
-    else setUnsignedTrace(runtime.trace);
-  }, [runtime.trace, visible, spendType]);
+    if (!visible || runtime.busy || runtime.error) return;
+    const preparation = preparationFor(session, source, page);
+    if (!preparation) return;
+    const sign = preparation === 'signed';
+    if (pending.current?.input === runtime.traceInput && pending.current.input.signTransaction === sign && !pending.current.input.previewSighash) return;
+    request(source, session, sign);
+    // Only a missing prepared result starts work; cached contexts survive navigation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, page, source, session, runtime.busy, runtime.error, runtime.traceInput]);
   useEffect(() => {
-    if (!visible || page !== 'signing' || explorerIndex === null || runtime.status.state !== 'ready') return;
-    setSighashPreview(null);
-    calculate({ kind: 'transaction', previewSighash: true, transaction: draft, network, publicKey: '', compressed: true });
-  }, [visible, page, explorerIndex, draft, network, runtime.status.state, calculate]);
+    if (!visible || page !== 'signing' || explorerIndex === null || runtime.status.state !== 'ready' || runtime.busy || sighashPreview) return;
+    if (pending.current?.input.previewSighash && pending.current.input === runtime.traceInput) return;
+    request(source, session, false, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, page, source, explorerIndex, draft, network, sighashPreview, runtime.busy, runtime.traceInput, runtime.status.state]);
   const trace = !dirty ? (page === 'transaction' ? unsignedTrace : signedTrace) : null;
   const data = trace?.transaction;
   const result = data ? trace?.steps[0] : null;
   const active = data?.fields.find((field) => field.id === selected) ?? data?.fields[0];
-  function edit(next: TransactionDraft) { invalidate(); setDraft(next); setDirty(true); setUnsignedTrace(null); setSignedTrace(null); setSighashPreview(null); }
-  function build(next = draft, net = network, signTransaction = false) {
-    setSelected('tx-0'); setDirty(false);
-    setSignedTrace(null);
-    if (!signTransaction) setUnsignedTrace(null);
-    calculate({ kind: 'transaction', transaction: next, network: net, publicKey: '', compressed: true, signTransaction });
+  const setSelected = (value: string) => patch(source, { selected: value });
+  const setExplorerIndex = (value: number | null) => patch(source, { explorerIndex: value });
+  function switchSource(next: TransactionSource) {
+    if (next === source) return;
+    pending.current = null; invalidate(); setSource(next);
   }
-  function restore(sign = false) { setExplorerIndex(null); setSighashPreview(null); const next = example(network, spendType); setDraft(next); setUnsignedTrace(null); build(next, network, sign); }
+  function edit(next: TransactionDraft, net = network) {
+    pending.current = null; invalidate();
+    const updated = editedSession(session, next, net);
+    setSessions(previous => ({ ...previous, journey: updated })); setSource('journey');
+  }
+  function build(next = draft, net = network, signTransaction = false) {
+    const updated = { ...session, draft: next, network: net, selected: 'tx-0', dirty: false, authored: true, signedTrace: null, ...(!signTransaction ? { unsignedTrace: null } : {}) };
+    setSessions(previous => ({ ...previous, journey: updated })); setSource('journey');
+    request('journey', updated, signTransaction);
+  }
+  function restore(sign = false) {
+    invalidate(); const updated = newSession(example(network, spendType), network);
+    setSessions(previous => ({ ...previous, example: updated })); setSource('example');
+    request('example', updated, sign);
+  }
   function changeTree(index: number, count: 2 | 3) {
     const row = draft.inputs[index];
     const source = TAPROOT_ADDRESSES[network].tree[String(count) as '2' | '3'];
@@ -135,10 +158,14 @@ function SpendLesson({ runtime, page, visible, spendType }: LessonProps & { spen
   const sats = (amount: number) => amount.toLocaleString('en-US');
 
   return <div className="tx-spend-lesson">
+    <aside className="tx-source-context" aria-label="Transaction context">
+      <div><span className="output-kicker">{source === 'example' ? 'TEACHING EXAMPLE' : 'YOUR LEARNING JOURNEY'}</span><strong>{source === 'example' ? 'A ready-to-explore example.' : dirty ? 'Your draft, waiting to be signed.' : 'Following your transaction.'}</strong><p>{source === 'example' ? 'Public learning keys and a fictional UTXO. This lesson prepares the transaction it needs, so you can start here. Editing or building creates your own draft.' : 'Your edits and results carry across the seven stages. Switching to the example keeps this draft and its block context in memory.'}</p></div>
+      {sessions.journey.authored && <div className="segmented" role="group" aria-label="Choose transaction context"><button aria-pressed={source === 'example'} className={source === 'example' ? 'selected' : ''} onClick={() => switchSource('example')}>Teaching example</button><button aria-pressed={source === 'journey'} className={source === 'journey' ? 'selected' : ''} onClick={() => switchSource('journey')}>Your transaction</button></div>}
+    </aside>
     {page === 'transaction' && <>
     <form className="tx-builder" onSubmit={(event) => { event.preventDefault(); build(); }}>
       <div className="tx-section-heading"><div><span className="section-index">01</span><h2>Build your transaction</h2></div><button type="button" className="text-button" onClick={() => restore()}><RotateCcw size={14} />Use example</button></div>
-      <div className="tx-network"><label htmlFor={`tx-network-${spendType}`}>Address network</label><select id={`tx-network-${spendType}`} value={network} onChange={(event) => { edit(draft); setNetwork(event.target.value as Network); }}><option value="mainnet">Mainnet</option><option value="testnet">Testnet</option></select><span>Changing networks keeps your entries. Use example to load matching addresses.</span></div>
+      <div className="tx-network"><label htmlFor={`tx-network-${spendType}`}>Address network</label><select id={`tx-network-${spendType}`} value={network} onChange={(event) => edit(draft, event.target.value as Network)}><option value="mainnet">Mainnet</option><option value="testnet">Testnet</option></select><span>Changing networks keeps your entries. Use example to load matching addresses.</span></div>
       <p className="tx-context">The example uses a fictional UTXO. Enter your own details below; existence, ownership, and unspent status are not checked. Building unsigned needs no private key.</p>
       <aside className="tx-anatomy" aria-label={`${spendLabel} transaction anatomy`}>
         <strong>{taproot ? 'One output key. Authorization stays in witness.' : nested ? 'A witness program bridges scriptSig and witness.' : segwit ? 'Witness data gets its own section.' : multisig ? 'The spending rule is revealed inside each input.' : 'Signatures live inside each input.'}</strong>
@@ -178,7 +205,7 @@ function SpendLesson({ runtime, page, visible, spendType }: LessonProps & { spen
     </form></>}
     {page === 'signing' && <section className="input-card tx-signing-form" aria-label="Signing inputs">
       <div className="tx-section-heading"><h2>Authorize your transaction</h2><button type="button" className="text-button" onClick={() => restore(true)}>Use signed example</button></div>
-      <p className="tx-context">{draft.inputs.length} inputs · {draft.outputs.length} outputs · {network}. Your transaction carries forward from Anatomy. <a href="#transaction">Edit UTXOs and outputs →</a></p>
+      <p className="tx-context">{draft.inputs.length} inputs · {draft.outputs.length} outputs · {network}. {source === 'example' ? 'A prepared unsigned example is ready to authorize.' : 'Your draft carries forward from Anatomy.'} <a href="#transaction">Edit UTXOs and outputs →</a></p>
       {draft.inputs.map((row, index) => {
         const change = (updates: Partial<typeof row>) => edit({ ...draft, inputs: draft.inputs.map((item, i) => i === index ? { ...item, ...updates } : item) });
         const mode = row.sighashType ?? (taproot ? 0 : 1);
@@ -192,7 +219,7 @@ function SpendLesson({ runtime, page, visible, spendType }: LessonProps & { spen
     </section>}
     {page !== 'transaction' && runtime.error && <p className="input-error" role="alert">{runtime.error}</p>}
     {page === 'signing' && dirty && <p className="draft-notice">Inputs or signature scope changed. Sign to create a new result.</p>}
-    {(['execution', 'propagation', 'construction', 'mining', 'blocks'].includes(page)) && !signedTrace && <section className="panel tx-stage-empty"><h2>Start with a signed transaction</h2><p>Continue from Signing, or load the public example to explore this lesson independently.</p><a className="secondary-button" href="#signing">Go to signing</a><button className="primary-button" disabled={runtime.busy || runtime.status.state !== 'ready'} onClick={() => restore(true)}>Use signed example</button></section>}
+    {(['execution', 'propagation', 'construction', 'mining', 'blocks'].includes(page)) && !signedTrace && source === 'journey' && <section className="panel tx-stage-empty"><h2>Sign your draft to continue</h2><p>Your edited draft needs an explicit signature. Go to Signing, or explore the teaching example while keeping your draft.</p><a className="secondary-button" href="#signing">Go to signing</a><button className="primary-button" disabled={runtime.busy || runtime.status.state !== 'ready'} onClick={() => restore(true)}>Use signed example</button></section>}
 
     {runtime.status.state !== 'ready' && <div className="tx-runtime panel" role="status"><p>{runtime.status.message}</p>{runtime.status.state === 'error' ? <button className="secondary-button" onClick={runtime.retry}>Restart Python</button> : <progress max="100" value={runtime.status.progress} aria-label="Loading Python" />}</div>}
     {(page === 'transaction' || page === 'signing') && data && result && active && <>
@@ -210,11 +237,17 @@ function SpendLesson({ runtime, page, visible, spendType }: LessonProps & { spen
       <details className="panel tx-python"><summary>Inspect the previous locking scripts</summary><p>These describe the UTXOs being spent. {taproot ? 'BIP341 DEFAULT commits to the amounts and locking scripts of every previous output. Script paths additionally commit to the chosen TapLeaf. These metadata fields are not serialized in the input.' : wsh ? 'BIP143 uses the revealed witness script as scriptCode. The previous output commits to its SHA256.' : nested ? 'The outer P2SH lock commits to HASH160 of the redeem witness program. BIP143 uses the P2PKH-style scriptCode derived from that program and the supplied amount.' : native ? 'BIP143 uses a P2PKH-style scriptCode derived from each witness program; it is shown in the Sighash explorer.' : multisig ? 'These outer scripts commit to the redeem-script hash. The redeem scripts enter the signing digest and are revealed in the final scriptSigs.' : 'They enter the signing digest calculation, not the final scriptSigs.'}</p>{data.previousScripts.map((script, i) => <div key={i}><h4>Input {i + 1} · previous scriptPubKey</h4><code className="tx-selected-hex">{script}</code></div>)}</details>
       <div className="insight"><div><strong>Try changing just one thing.</strong><p>Reduce the change amount by 1 satoshi: the fee rises by 1. Edit a vout and look for its four little-endian bytes. Add another input to see a second outpoint, empty scriptSig, and sequence.</p></div></div>
     </>}
-    {signedTrace?.transaction?.signing && <>
-      {visible && page === 'execution' && (taproot ? <TaprootExecution key={signedTrace.transaction.wtxid} runtime={runtime} trace={{ hex: signedTrace.steps[0].hex, data: signedTrace.transaction }} network={network} /> : <ScriptExecution key={signedTrace.transaction.wtxid} runtime={runtime} hex={signedTrace.steps[0].hex} scripts={signedTrace.transaction.previousScripts} amounts={signedTrace.transaction.previousAmounts} spendType={spendType} network={network} sighashNames={signedTrace.transaction.signing.inputs.map(item => item.sighashName)} />)}
-      <div hidden={page !== 'propagation'}><TransactionJourney wtxid={signedTrace.transaction.wtxid} hasWitness={signedTrace.transaction.hasWitness} weight={signedTrace.transaction.weight} key={signedTrace.transaction.wtxid + ':' + signedTrace.transaction.fee} enabled={visible && page === 'propagation'} txid={signedTrace.transaction.signing.txid} hex={signedTrace.steps[0].hex} fee={signedTrace.transaction.fee} vsize={signedTrace.transaction.vsize} inputs={draft.inputs} scripts={signedTrace.transaction.previousScripts} /></div>
-      <div hidden={page !== 'construction' && page !== 'mining' && page !== 'blocks'}><BlockConstructionLesson enabled={visible} key={signedTrace.transaction.wtxid + ':' + signedTrace.transaction.fee} page={page} runtime={runtime} hasWitness={signedTrace.transaction.hasWitness} hex={signedTrace.steps[0].hex} txid={signedTrace.transaction.signing.txid} fee={signedTrace.transaction.fee} vsize={signedTrace.transaction.vsize} network={network} /></div>
-    </>}
+    {source === 'example' && !signedTrace && !['transaction', 'signing'].includes(page) && !runtime.error && <section className="panel tx-stage-empty" role="status"><h2>Preparing the teaching example…</h2><p>Signing the public example in browser Python before loading this stage.</p></section>}
+    {(['example', 'journey'] as const).map(context => {
+      const current = sessions[context], signed = current.signedTrace;
+      if (!signed?.transaction?.signing) return null;
+      const tx = signed.transaction, enabled = visible && source === context;
+      return <div key={context} hidden={source !== context}>
+        {enabled && page === 'execution' && (taproot ? <TaprootExecution key={tx.wtxid} runtime={runtime} trace={{ hex: signed.steps[0].hex, data: tx }} network={current.network} /> : <ScriptExecution key={tx.wtxid} runtime={runtime} hex={signed.steps[0].hex} scripts={tx.previousScripts} amounts={tx.previousAmounts} spendType={spendType} network={current.network} sighashNames={tx.signing!.inputs.map(item => item.sighashName)} />)}
+        <div hidden={page !== 'propagation'}><TransactionJourney source={context} wtxid={tx.wtxid} hasWitness={tx.hasWitness} weight={tx.weight} key={tx.wtxid + ':' + tx.fee} enabled={enabled && page === 'propagation'} txid={tx.signing!.txid} hex={signed.steps[0].hex} fee={tx.fee} vsize={tx.vsize} inputs={current.draft.inputs} scripts={tx.previousScripts} /></div>
+        <div hidden={!['construction', 'mining', 'blocks'].includes(page)}><BlockConstructionLesson source={context} enabled={enabled} key={tx.wtxid + ':' + tx.fee} page={page} runtime={runtime} hasWitness={tx.hasWitness} hex={signed.steps[0].hex} txid={tx.signing!.txid} fee={tx.fee} vsize={tx.vsize} network={current.network} /></div>
+      </div>;
+    })}
     <div className="tx-next-page">{page === 'transaction' && unsignedTrace && !dirty && <a className="primary-button" href="#signing">Continue to signing<ArrowRight size={15} /></a>}{page === 'signing' && signedTrace && !dirty && <a className="primary-button" href="#execution">Verify with Script execution<ArrowRight size={15} /></a>}{page === 'execution' && signedTrace && <a className="primary-button" href="#propagation">Explore propagation<ArrowRight size={15} /></a>}{page === 'propagation' && signedTrace && <a className="primary-button" href="#construction">Build a candidate block<ArrowRight size={15} /></a>}{page === 'construction' && signedTrace && <a className="primary-button" href="#mining">Continue to mining<ArrowRight size={15} /></a>}{page === 'mining' && signedTrace && <a className="primary-button" href="#blocks">Follow the mined block<ArrowRight size={15} /></a>}</div>
     <div className="lesson-sources">Read the specification: <a href="https://developer.bitcoin.org/reference/transactions.html#raw-transaction-format" target="_blank" rel="noreferrer">Raw transaction format</a>{(spendType === 'p2sh' || nested) && <> · <a href="https://github.com/bitcoin/bips/blob/master/bip-0016.mediawiki" target="_blank" rel="noreferrer">P2SH (BIP16)</a> · <a href="https://github.com/bitcoin/bips/blob/master/bip-0147.mediawiki" target="_blank" rel="noreferrer">NULLDUMMY (BIP147)</a></>}{taproot && <> · <a href="https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki" target="_blank" rel="noreferrer">Schnorr (BIP340)</a> · <a href="https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki" target="_blank" rel="noreferrer">Taproot (BIP341)</a> · <a href="https://github.com/bitcoin/bips/blob/master/bip-0342.mediawiki" target="_blank" rel="noreferrer">Tapscript (BIP342)</a></>}{segwit && !taproot && <> · <a href="https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki" target="_blank" rel="noreferrer">SegWit (BIP141)</a> · <a href="https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki" target="_blank" rel="noreferrer">BIP143 signing</a></>}</div>
   </div>;

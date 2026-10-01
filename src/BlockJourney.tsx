@@ -4,14 +4,16 @@ import { advanceBlockWave, initialBlockSimulation, LINKS, NODES } from './blockS
 import type { BlockNodeStatus } from './blockSimulation';
 import type { CandidateResult } from './types';
 import './journey.css';
+import type { TransactionSource } from './transactionSession';
 
 const STATUS: Record<BlockNodeStatus, string> = {
   unseen: 'Waiting for block', announced: 'Block announced', reconstructing: 'Requesting missing txs', checking: 'Validating block', accepted: 'Block accepted',
 };
 
-export function BlockJourney({ candidate, selected, extraBlocks, setExtraBlocks, reset }: {
-  candidate: CandidateResult; selected: boolean; extraBlocks: number; setExtraBlocks: (update: (count: number) => number) => void; reset: () => void;
+export function BlockJourney({ candidate, selected, extraBlocks, setExtraBlocks, reset, source, enabled }: {
+  source: TransactionSource; enabled: boolean; candidate: CandidateResult; selected: boolean; extraBlocks: number; setExtraBlocks: (update: (count: number) => number) => void; reset: () => void;
 }) {
+  const subject = source === 'example' ? 'Example transaction' : 'Your transaction';
   const witness = candidate.witnessCommitment;
   const [state, setState] = useState(initialBlockSimulation);
   const [playing, setPlaying] = useState(false);
@@ -20,13 +22,13 @@ export function BlockJourney({ candidate, selected, extraBlocks, setExtraBlocks,
   const accepted = NODES.filter(({ id }) => state.nodes[id] === 'accepted').length;
   const confirmations = selected && state.nodes.A === 'accepted' ? 1 + extraBlocks : 0;
   useEffect(() => {
-    if (!playing || !state.queue.length) return;
+    if (!enabled || !playing || !state.queue.length) return;
     const timer = setTimeout(() => setState((previous) => advanceBlockWave(previous)), 1200);
     return () => clearTimeout(timer);
-  }, [playing, state.queue]);
+  }, [playing, state.queue, enabled]);
   function restart() { setPlaying(false); setState(initialBlockSimulation()); reset(); }
   return <section className="panel mining-card block-journey" aria-label="Compact block propagation simulation">
-    <div className="journey-identity"><span>FOLLOWING YOUR CANDIDATE MERKLE ROOT</span><code>{candidate.merkle.root}</code><div><span>{witness ? 'Includes a coinbase witness commitment' : 'Legacy candidate'}</span><strong>{selected ? 'Your transaction is included' : 'Your transaction is not selected'}</strong></div></div>
+    <div className="journey-identity"><span>{source === 'example' ? 'FOLLOWING THE EXAMPLE CANDIDATE MERKLE ROOT' : 'FOLLOWING YOUR CANDIDATE MERKLE ROOT'}</span><code>{candidate.merkle.root}</code><div><span>{witness ? 'Includes a coinbase witness commitment' : 'Legacy candidate'}</span><strong>{subject} {selected ? 'is included' : 'is not selected'}</strong></div></div>
     <div className="journey-heading"><div><span className="output-kicker">01 / COMPACT BLOCK RELAY</span><h2>A block arrives.<br /><span>Nodes decide.</span></h2></div><span className="journey-badge"><Network size={14} />LOCAL SIMULATION</span></div>
     <p>Assume a valid block containing this selection was found by node D. This is a relay simulation; the easy-target header from Mining is not sent or validated here. Peers negotiated compact-block support earlier with <code>sendcmpct</code>. Watch compact announcements travel in parallel while every receiver reconstructs and validates the block independently.</p>
     {witness && <p>This SegWit example assumes compact-block version 2: short IDs derive from WTXIDs, and prefilled and requested transactions include witness data. Receivers are modeled as checking the witness commitment, BIP143 signatures, and the ordinary TXID Merkle root before accepting the block. Short IDs and full block validation are not calculated in this simulation.</p>}
@@ -35,9 +37,9 @@ export function BlockJourney({ candidate, selected, extraBlocks, setExtraBlocks,
     <div className="journey-event" role="status"><span>{state.wave ? `WAVE ${String(state.wave).padStart(2, '0')} · ${waveLogs.length} ${waveLogs.length === 1 ? 'MESSAGE' : 'MESSAGES'}` : 'COMPACT RELAY READY'}</span>{waveLogs.length ? <ul>{waveLogs.map((log, index) => <li key={index}>{log.text}</li>)}</ul> : <p>Node D has the block. Start relay to send <code>cmpctblock</code> to its connected peers.</p>}</div>
     <div className="block-message-key"><div><code>sendcmpct</code><span>Negotiated earlier per connection</span></div><div><code>cmpctblock</code><span>Header, short transaction IDs, and prefilled transactions</span></div><div><code>getblocktxn</code><span>Request transactions missing from local reconstruction</span></div><div><code>blocktxn</code><span>Return the requested full transactions</span></div></div>
     <section className="journey-decision" aria-label="Selected node block state"><span className="output-kicker">NODE {selectedNode} / INDEPENDENT VIEW</span><h3>{STATUS[state.nodes[selectedNode]]}</h3><p>{state.nodes[selectedNode] === 'accepted' ? 'This node has accepted the block into its best chain in the simulation. It updates its UTXO set and removes included transactions from its local mempool.' : state.nodes[selectedNode] === 'reconstructing' ? 'This node lacks some advertised transactions locally. It must obtain them before it can reconstruct and validate the complete block.' : state.nodes[selectedNode] === 'checking' ? 'Reconstruction is complete. Header, proof of work, Merkle commitment, transactions, scripts, and other consensus rules are modeled as being checked independently.' : 'This node has not accepted the block yet.'}</p></section>
-    <div className="mining-chain" aria-label="Simulated chain at node A"><div>Previous tip</div><span>→</span>{state.nodes.A === 'accepted' ? <><div className={selected ? 'included' : ''}>Accepted block<small>{selected ? 'Contains your transaction' : 'Excludes your transaction'}</small></div>{extraBlocks > 0 && <><span>→</span><div>+{extraBlocks} blocks<small>Built on this block</small></div></>}</> : <div>Waiting for node A</div>}</div>
+    <div className="mining-chain" aria-label="Simulated chain at node A"><div>Previous tip</div><span>→</span>{state.nodes.A === 'accepted' ? <><div className={selected ? 'included' : ''}>Accepted block<small>{selected ? 'Contains' : 'Excludes'} {subject.toLowerCase()}</small></div>{extraBlocks > 0 && <><span>→</span><div>+{extraBlocks} blocks<small>Built on this block</small></div></>}</> : <div>Waiting for node A</div>}</div>
     <div className="mining-controls"><button className="primary-button" disabled={state.nodes.A !== 'accepted' || extraBlocks >= 5} onClick={() => setExtraBlocks((count) => count + 1)}>Simulate next block at A</button><button className="text-button" onClick={restart}>Reset block simulation</button></div>
-    <p>Node A reports <strong>{confirmations} {confirmations === 1 ? 'confirmation' : 'confirmations'}</strong> for your transaction. Inclusion gives the first; each later block on that chain adds one. The {accepted} accepted node views are local, and a reorganization could later reduce confirmation depth.</p>
+    <p>Node A reports <strong>{confirmations} {confirmations === 1 ? 'confirmation' : 'confirmations'}</strong> for {subject.toLowerCase()}. Inclusion gives the first; each later block on that chain adds one. The {accepted} accepted node views are local, and a reorganization could later reduce confirmation depth.</p>
     <details className="journey-history"><summary>Replay the block message log ({state.logs.length})</summary><ol>{state.logs.map((log, index) => <li key={index}><span>Wave {log.wave}</span>{log.text}</li>)}</ol></details>
     <div className="lesson-sources">Reference: <a href="https://github.com/bitcoin/bips/blob/master/bip-0152.mediawiki" target="_blank" rel="noreferrer">BIP 152 · compact block relay</a></div>
   </section>;

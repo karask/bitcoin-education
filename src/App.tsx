@@ -6,13 +6,14 @@ import {
 } from 'lucide-react';
 import type { ByteField, CodeMode, LessonInput, LessonKind, LessonTrace, StepResult, Theme } from './types';
 import { EXAMPLE_PUBLIC_KEY, EXAMPLE_PUBLIC_KEYS } from './lessons';
-import { CATALOG, LESSON_ORDER, TRANSACTION_ORDER, isTransactionPage, isTransactionSection, lessonFromHash } from './lessonCatalog';
+import { CATALOG, LESSON_ORDER, isTransactionPage, isTransactionSection, lessonFromHash } from './lessonCatalog';
 import { SymbolExplorer, AddressParts } from './EncodingExplorer';
 import { ComparisonTable } from './ComparisonTable';
 import type { LessonStep } from './lessons';
 import { MultisigBuilder } from './MultisigBuilder';
 import { usePython } from './usePython';
 import { TransactionLesson } from './TransactionLesson';
+import { TOPICS, topicFor, type TopicId } from './navigation';
 import { HomeScreen } from './HomeScreen';
 import { TransactionComparisonLab } from './TransactionComparisonLab';
 
@@ -41,14 +42,12 @@ function CopyButton({ value, label = 'Copy', small = false }: { value: string; l
 }
 
 function Sidebar({ open, close, onAbout, kind }: { kind: LessonKind; open: boolean; close: () => void; onAbout: () => void }) {
-  const [addressesExpanded, setAddressesExpanded] = useState(false);
-  const [transactionsExpanded, setTransactionsExpanded] = useState(false);
+  const [expanded, setExpanded] = useState<TopicId | null>(null);
   const previousKind = useRef(kind);
   useEffect(() => {
     if (previousKind.current === kind) return;
     previousKind.current = kind;
-    setAddressesExpanded(kind !== 'home' && !isTransactionSection(kind));
-    setTransactionsExpanded(isTransactionSection(kind));
+    setExpanded(topicFor(kind)?.id ?? null);
   }, [kind]);
   return <>
     {open && <button className="drawer-overlay" aria-label="Close navigation" onClick={close} />}
@@ -63,10 +62,10 @@ function Sidebar({ open, close, onAbout, kind }: { kind: LessonKind; open: boole
       <div className="sidebar-intro">Understand Bitcoin.<br />One little piece at a time.</div>
       <div className="nav-caption">YOUR LEARNING PATH</div>
       <nav>
-        <button type="button" className="topic-label" aria-expanded={addressesExpanded} aria-controls="address-lessons" onClick={() => setAddressesExpanded((expanded) => !expanded)}><span className="topic-icon"><Fingerprint size={18} /></span><span>Addresses</span>{addressesExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button>
-        <div id="address-lessons" className="subnav" hidden={!addressesExpanded}>{addressesExpanded && LESSON_ORDER.map((id) => <a key={id} href={`#${id}`} onClick={close} aria-current={kind === id ? 'page' : undefined}><span className="active-dot" /><span>{CATALOG[id].nav}</span><span className="nav-tag">{id === 'nested' ? 'WRAPPED' : CATALOG[id].tag}</span></a>)}</div>
-        <button type="button" className="topic-label" aria-expanded={transactionsExpanded} aria-controls="transaction-lessons" onClick={() => setTransactionsExpanded((expanded) => !expanded)}><span className="topic-icon"><ArrowRight size={18} /></span><span>Transactions</span>{transactionsExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button>
-        <div id="transaction-lessons" className="subnav" hidden={!transactionsExpanded}>{transactionsExpanded && TRANSACTION_ORDER.map((id) => <a key={id} href={`#${id}`} onClick={close} aria-current={kind === id ? 'page' : undefined}><span className="active-dot" /><span>{CATALOG[id].nav}</span></a>)}{transactionsExpanded && <a href="#tx-compare" onClick={close} aria-current={kind === 'tx-compare' ? 'page' : undefined}><span className="active-dot" /><span>Compare transaction types</span><span className="nav-tag">LAB</span></a>}</div>
+        {TOPICS.map(topic => <div key={topic.id}>
+          <button type="button" className="topic-label" aria-expanded={expanded === topic.id} aria-controls={`${topic.id}-lessons`} onClick={() => setExpanded(current => current === topic.id ? null : topic.id)}><span className="topic-icon">{topic.id === 'addresses' ? <Fingerprint size={18} /> : topic.id === 'scripts' ? <Code2 size={18} /> : topic.id === 'network' ? <ShieldCheck size={18} /> : <ArrowRight size={18} />}</span><span>{topic.title}</span>{expanded === topic.id ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button>
+          <div id={`${topic.id}-lessons`} className="subnav" hidden={expanded !== topic.id}>{expanded === topic.id && topic.pages.map(id => <a key={id} href={`#${id}`} onClick={close} aria-current={kind === id ? 'page' : undefined}><span className="active-dot" /><span>{CATALOG[id].nav}</span>{topic.id === 'addresses' && <span className="nav-tag">{id === 'nested' ? 'WRAPPED' : CATALOG[id].tag}</span>}{id === 'tx-compare' && <span className="nav-tag">LAB</span>}</a>)}</div>
+        </div>)}
       </nav>
       <div className="sidebar-note"><div className="note-icon"><FlaskConical size={19} /></div><h3>A little curiosity goes a long way.</h3><p>Change an input. Follow the bytes. See what Bitcoin is really made of.</p><button onClick={onAbout}>How this lab works <ArrowUpRight size={14} /></button></div>
       <div className="sidebar-bottom"><div className="local-label"><span /> A browser-native playground</div><a href="https://github.com/karask/python-bitcoin-utils" target="_blank" rel="noreferrer">Built with <strong>python-bitcoin-utils</strong><ArrowUpRight size={12} /></a><span className="sidebar-version">Made for learning. Powered by real code.</span></div>
@@ -259,7 +258,7 @@ export default function App() {
     <a href="#lesson-content" className="skip-link">Skip to lesson</a>
     <Sidebar kind={kind} open={drawerOpen} close={() => setDrawerOpen(false)} onAbout={() => { setAboutOpen(true); setDrawerOpen(false); }} />
     <div className="app-main" inert={drawerOpen}>
-      <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="lesson-navigation" onClick={() => setDrawerOpen(true)}><Menu size={20} /></button><a href="#home" className="breadcrumb-home">The learning lab</a><ChevronRight size={13} /><span>{isHome ? 'Home' : isTransactionSection(kind) ? 'Transactions' : 'Addresses'}</span><ChevronRight size={13} /><strong>{definition.tag}</strong></div><div className="topbar-actions"><span className={`runtime-pill ${runtime.status.state}`} title={runtime.status.message}><span />{runtime.status.state === 'ready' ? 'Runs in your browser' : runtime.status.state === 'error' ? 'Python needs attention' : 'Starting Python'}</span><span className="toolbar-divider" /><button className="icon-button" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button><button className="icon-button help-button" aria-label="About this learning lab" onClick={() => setAboutOpen(true)}><HelpCircle size={18} /></button></div></header>
+      <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="lesson-navigation" onClick={() => setDrawerOpen(true)}><Menu size={20} /></button><a href="#home" className="breadcrumb-home">The learning lab</a><ChevronRight size={13} /><span>{isHome ? 'Home' : topicFor(kind)?.title}</span><ChevronRight size={13} /><strong>{definition.tag}</strong></div><div className="topbar-actions"><span className={`runtime-pill ${runtime.status.state}`} title={runtime.status.message}><span />{runtime.status.state === 'ready' ? 'Runs in your browser' : runtime.status.state === 'error' ? 'Python needs attention' : 'Starting Python'}</span><span className="toolbar-divider" /><button className="icon-button" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button><button className="icon-button help-button" aria-label="About this learning lab" onClick={() => setAboutOpen(true)}><HelpCircle size={18} /></button></div></header>
       <main id="lesson-content" className="lesson-content">
         {isHome && <HomeScreen />}
         <div hidden={!isTransactionPage(kind)}><TransactionLesson runtime={runtime} visible={isTransactionPage(kind)} page={isTransactionPage(kind) ? kind : 'transaction'} /></div>
