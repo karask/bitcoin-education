@@ -2,7 +2,8 @@ export type Network = 'mainnet' | 'testnet';
 export type Theme = 'light' | 'dark';
 export type CodeMode = 'pseudocode' | 'python';
 export type TransactionPage = 'transaction' | 'signing' | 'execution' | 'propagation' | 'construction' | 'mining' | 'blocks';
-export type LessonKind = 'home' | 'timelocks' | 'coins' | 'tx-compare' | 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage;
+export type CryptographyPage = 'crypto-prerequisites' | 'private-keys' | 'public-keys' | 'ecdsa';
+export type LessonKind = 'home' | 'timelocks' | 'coins' | 'tx-compare' | 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'compare' | TransactionPage | CryptographyPage;
 export type SpendType = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'nested' | 'p2tr' | 'p2tr-script';
 export type SighashType = 0 | 1 | 2 | 3 | 129 | 130 | 131;
 export type TaprootPath = 'key' | 'multisig' | 'recovery' | 'hashlock';
@@ -97,7 +98,22 @@ export interface TimelockResult {
   hex: string; txid: string; wtxid: string; vsize: number; fee: number; python: string;
 }
 
+export interface CryptoPoint { x: string; y: string }
+export interface CryptoPrivateResult { d: string; privateHex: string; p: string; n: string; python: string }
+export interface CryptoKeyResult extends CryptoPrivateResult {
+  G: CryptoPoint; Q: CryptoPoint;
+  compressed: string; uncompressed: string; recoveredY: string; alpha: string;
+  multiplication: { index: number; bit: string; before: CryptoPoint | null; doubled: CryptoPoint | null; result: CryptoPoint | null }[];
+  python: string;
+}
+export interface CryptoEcdsaResult extends CryptoKeyResult {
+  message: string; digest: string; z: string; k: string; R: CryptoPoint; r: string; s: string; lowS: string; der: string;
+  verification: { experiment: string; digest: string; Q: CryptoPoint; r: string; w: string; u1: string; u2: string; V: CryptoPoint | null; valid: boolean };
+}
+export type CryptographyResult = CryptoPrivateResult | CryptoKeyResult | CryptoEcdsaResult;
+
 export interface LessonInput {
+  cryptography?: { privateHex: string; message: string; experiment: 'original' | 'message' | 'key' | 'signature' };
   timelocks?: TimelockOptions;
   transactionComparison?: { group: 'single' | 'multisig'; inputs: number; outputs: number };
   execution?: { hex: string; previousScript: string; inputIndex: number; experiment: string; spendType: SpendType; amount: number; previousScripts?: string[]; amounts?: number[]; age?: number };
@@ -137,6 +153,7 @@ export interface StepResult {
 }
 
 export interface LessonTrace {
+  cryptography?: CryptographyResult;
   timelocks?: TimelockResult;
   transactionComparison?: TransactionComparisonResult;
   execution?: { success: boolean; final_stack: string[]; error: {code: string; message: string} | null; python: string; sighash: string | null; redeem_script?: string; witness_script?: string; required?: number; public_keys?: string[]; checks?: { signature: number; publicKey: number; digest: string; sighash: string; valid: boolean }[]; amount?: number; witness_program?: string; script_code?: string; clean_stack?: boolean; steps: {phase: string; instruction: string; kind?: string; stack_before: string[]; stack_after: string[]; error: string | null; digest?: string; signature_valid?: boolean; checks?: { signature: number; publicKey: number; digest: string; sighash: string; valid: boolean }[]}[] };

@@ -1,6 +1,6 @@
 import { LESSON_STEPS, P2SH_STEPS } from './lessons';
 import type { LessonStep } from './lessons';
-import type { LessonKind } from './types';
+import type { CryptographyPage, LessonKind } from './types';
 
 function step(id: string, short: string, title: string, description: string, insight: string, pseudo: string, outputLabel: string): LessonStep {
   return { id, short, title, description, insight, pseudo, outputLabel, eyebrow: short.toUpperCase(), operation: short };
@@ -55,10 +55,16 @@ interface LessonDefinition {
   summary?: string; spending?: string; experiments?: string[]; references: number[];
 }
 export const LESSON_ORDER: LessonKind[] = ['p2pkh', 'p2sh', 'p2wpkh', 'p2wsh', 'nested', 'p2tr', 'compare'];
+export const CRYPTOGRAPHY_ORDER = ['crypto-prerequisites', 'private-keys', 'public-keys', 'ecdsa'] as const;
+export function isCryptographyPage(kind: LessonKind): kind is CryptographyPage { return (CRYPTOGRAPHY_ORDER as readonly string[]).includes(kind); }
 export const TRANSACTION_ORDER = ['transaction', 'signing', 'execution', 'propagation', 'construction', 'mining', 'blocks'] as const;
 export function isTransactionPage(kind: LessonKind): kind is typeof TRANSACTION_ORDER[number] { return (TRANSACTION_ORDER as readonly string[]).includes(kind); }
 export function isTransactionSection(kind: LessonKind) { return isTransactionPage(kind) || kind === 'tx-compare' || kind === 'coins' || kind === 'timelocks'; }
 export const CATALOG: Record<LessonKind, LessonDefinition> = {
+  'crypto-prerequisites': { nav: 'Mathematical prerequisites', tag: 'FOUNDATIONS', title: 'Small sets.', accent: 'Powerful operations.', description: 'Build the language of keys and signatures: finite sets, modular arithmetic, fields, and elliptic-curve groups.', steps: [], references: [] },
+  'private-keys': { nav: 'Private keys', tag: 'SCALARS', title: 'One number.', accent: 'A private key.', description: 'Choose a scalar from a finite set. Connect group order, bytes, and randomness to Bitcoin’s private keys.', steps: [], references: [] },
+  'public-keys': { nav: 'Public keys & construction', tag: 'POINTS', title: 'From a scalar', accent: 'to a curve point.', description: 'Construct Q = dG with the group operation you learned, then inspect actual secp256k1 coordinates and encodings.', steps: [], references: [] },
+  ecdsa: { nav: 'ECDSA signing & verification', tag: 'ECDSA', title: 'The same math.', accent: 'A verifiable signature.', description: 'Use your key pair, modular inverses, and point multiplication to sign and verify, one equation at a time.', steps: [], references: [] },
   timelocks: { nav: 'Timelocks', tag: 'TIME', title: 'The right key.', accent: 'The right time.', description: 'Explore absolute and relative locks, build signed transactions, and compare script requirements with chain timing.', steps: [], references: [65, 68, 112, 113] },
   coins: { nav: 'UTXOs & coin selection', tag: 'COINS', title: 'A balance is a collection.', accent: 'Choose the pieces.', description: 'Explore unspent outputs, fund a payment, and discover how coin selection changes fees, change, and privacy.', steps: [], references: [] },
   'tx-compare': { nav: 'Compare transaction types', tag: 'COMPARE', title: 'Same payment.', accent: 'Different footprints.', description: 'Put transaction types on the scales. Discover where the bytes go and what they cost.', steps: [], references: [141, 341] },
@@ -81,5 +87,5 @@ export const CATALOG: Record<LessonKind, LessonDefinition> = {
 
 export function lessonFromHash(hash: string): LessonKind | null {
   const candidate = hash.replace(/^#/, '') || 'home';
-  return candidate === 'home' || isTransactionSection(candidate as LessonKind) || LESSON_ORDER.includes(candidate as LessonKind) ? candidate as LessonKind : null;
+  return candidate === 'home' || isCryptographyPage(candidate as LessonKind) || isTransactionSection(candidate as LessonKind) || LESSON_ORDER.includes(candidate as LessonKind) ? candidate as LessonKind : null;
 }

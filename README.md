@@ -414,3 +414,35 @@ encoder to remove unnecessary zero padding from the pinned core library's low-S
 conversion. The signature integers and sighash are preserved. Tests independently
 parse CompactSize and wire sections, hash IDs, execute every input, replay the
 Python, check decimal fee rounding, and compare CPython with Pyodide results.
+
+### Cryptography foundations, keys, and ECDSA
+
+The first menu section is Cryptography, before Addresses. Start at
+`#crypto-prerequisites`, then continue through `#private-keys`, `#public-keys`,
+and `#ecdsa`. The sequence introduces finite sets, binary/hexadecimal,
+modular arithmetic, prime fields and inverses, groups, and elliptic-curve
+addition before using these terms in key construction and signatures.
+
+One public teaching curve (`y² = x³ + 2x + 2 mod 17`, generator `(5,1)`, order
+19) carries a selected private scalar through every page in the browser session.
+Its diagrams show discrete points, a modular clock, finite-set membership,
+field inverses, binary double-and-add, signature equations, verification, and
+nonce reuse. Coordinate arithmetic modulo p is distinguished from scalar
+arithmetic modulo n. The tiny curve is intentionally searchable and offers no
+cryptographic security.
+
+Real secp256k1 calculations run through `bitcoin_education.cryptography` in the
+existing Python worker, using bitcoin-utils and ecdsa library points and
+RFC 6979 signatures. The lab shows actual coordinates, SEC encodings,
+decompression, a binary multiplication trace, digest/signature intermediates,
+low-S DER encoding, and verification experiments. A derived compressed public
+key can be carried directly into the Addresses lesson. Its learning-message
+SHA-256 digest is distinguished from Bitcoin transaction sighashes; the latter
+remain in the existing Signing lesson. The copied Python replays the shown
+calculation. Example private scalars and nonces are deliberately public and
+visible; users must not enter wallet secrets. Inputs are not stored or sent.
+
+Tests exhaustively check the teaching group and usable toy signatures,
+compare real known-point vectors and independent signature verification,
+validate scalar boundaries, replay displayed code, and compare native Python
+with the packaged WebAssembly runtime.

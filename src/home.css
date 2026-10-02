@@ -19,6 +19,7 @@
 .home-paths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .home-path { --path-color: var(--accent); --path-soft: var(--accent-soft); --path-line: var(--accent-line); position: relative; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 16px; padding: 25px; background: var(--surface); box-shadow: var(--card-shadow); transition: border-color .18s, box-shadow .18s, transform .18s; }
 .home-transactions { --path-color: var(--teal); --path-soft: color-mix(in srgb, var(--teal) 9%, var(--surface)); --path-line: color-mix(in srgb, var(--teal) 32%, var(--line)); }
+.home-cryptography { --path-color: var(--blue); --path-soft: color-mix(in srgb, var(--blue) 9%, var(--surface)); --path-line: color-mix(in srgb, var(--blue) 32%, var(--line)); }
 .home-path:hover, .home-path:focus-visible { border-color: var(--path-line); box-shadow: 0 10px 28px var(--art-shadow); transform: translateY(-3px); }
 .home-path-top { display: flex; align-items: center; gap: 12px; }
 .home-path-icon { display: grid; place-items: center; width: 46px; height: 46px; border: 1px solid var(--path-line); background: var(--path-soft); color: var(--path-color); border-radius: 13px; }

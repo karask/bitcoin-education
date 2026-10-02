@@ -1022,6 +1022,9 @@ def trace_lesson(request_json):
     if request.get('kind') == 'execution':
         return json.dumps(trace_execution(request))
     kind = request.get('kind', 'p2pkh')
+    if kind in ('crypto-prerequisites', 'private-keys', 'public-keys', 'ecdsa'):
+        from bitcoin_education.cryptography import trace_cryptography
+        return json.dumps(trace_cryptography(request))
     if kind == 'timelocks':
         from bitcoin_education.timelocks import trace_timelocks
         return json.dumps(trace_timelocks(request))

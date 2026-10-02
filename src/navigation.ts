@@ -1,6 +1,7 @@
 import type { LessonKind } from './types';
 
 export const TOPICS = [
+  { id: 'cryptography', title: 'Cryptography', pages: ['crypto-prerequisites', 'private-keys', 'public-keys', 'ecdsa'] },
   { id: 'addresses', title: 'Addresses', pages: ['p2pkh', 'p2sh', 'p2wpkh', 'p2wsh', 'nested', 'p2tr', 'compare'] },
   { id: 'transactions', title: 'Transactions', pages: ['coins', 'transaction', 'signing', 'tx-compare'] },
   { id: 'scripts', title: 'Scripts', pages: ['execution', 'timelocks'] },

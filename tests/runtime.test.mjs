@@ -43,6 +43,12 @@ test('WebAssembly produces the known compressed mainnet vector and full payload'
   assert.equal(trace.steps[6].hex, '00751e76e8199196d454941c45d1b3a323f1433bd6510d1634');
 });
 
+test('cryptography keys, signatures, mutations and binary traces agree in CPython and WebAssembly', () => {
+  const vectors = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_cryptography import wasm_vectors;print(json.dumps(wasm_vectors()))"], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
+  for (const vector of vectors) assert.deepEqual(JSON.parse(adapter.trace_lesson(JSON.stringify(vector.input))), vector.trace);
+  assert.throws(() => adapter.trace_lesson(JSON.stringify({ kind: 'ecdsa', cryptography: { privateHex: '00'.repeat(32) } })), /1 ≤ d < n/);
+});
+
 test('every WebAssembly intermediate value matches native CPython for both networks and formats', () => {
   const native = JSON.parse(execFileSync('python3', ['-c', "import sys,json;sys.path.insert(0,'tests');from test_p2pkh import trace,VECTORS;print(json.dumps([trace(n,c) for n,c,_ in VECTORS]))"], { cwd: root, encoding: 'utf8' }));
   for (const expected of native) {

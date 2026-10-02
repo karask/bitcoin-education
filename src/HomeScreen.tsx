@@ -11,8 +11,15 @@ export function HomeScreen() {
       <div className="home-byte-confetti" aria-hidden="true"><span>01</span><span>₿</span><span>ff</span><span>00</span></div>
     </section>
 
-    <div className="home-path-heading"><h2>Pick your first adventure</h2><span>Four ways in. Plenty of “aha!” moments.</span></div>
+    <div className="home-path-heading"><h2>Pick your first adventure</h2><span>Five ways in. Plenty of “aha!” moments.</span></div>
     <section className="home-paths" aria-label="Choose a learning path">
+      <a className="home-path home-cryptography" href="#crypto-prerequisites" aria-labelledby="home-crypto-title">
+        <div className="home-path-top"><span className="home-path-icon"><KeyRound size={24} /></span><span className="home-path-tag">CRYPTOGRAPHY</span><ArrowRight className="home-card-arrow" size={19} /></div>
+        <h3 id="home-crypto-title">How does a number become a key?</h3>
+        <p>Start with finite sets and modular arithmetic. Build private and public keys, then follow the math of ECDSA signatures with one carried example.</p>
+        <div className="home-mini-path" aria-hidden="true"><span>Math</span><ArrowRight size={13} /><span>Keys</span><ArrowRight size={13} /><span>Signature</span></div>
+        <div className="home-path-cta">Start with the foundations<ArrowRight size={16} /></div>
+      </a>
       <a className="home-path home-addresses" href="#p2pkh" aria-labelledby="home-address-title">
         <div className="home-path-top"><span className="home-path-icon"><Fingerprint size={24} /></span><span className="home-path-tag">ADDRESSES</span><ArrowRight className="home-card-arrow" size={19} /></div>
         <h3 id="home-address-title">Where do the coins go?</h3>
